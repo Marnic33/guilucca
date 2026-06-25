@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import LandingPage from "./components/LandingPage";
 import ClientePage from "./components/ClientePage";
 import PedidoPage from "./components/PedidoPage";
 import AdminPage from "./components/AdminPage";
@@ -14,10 +15,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<ClientePage />} />
+        <Route path="/"          element={<LandingPage />} />
+        <Route path="/cardapio"  element={<ClientePage />} />
         <Route path="/pedido/:id" element={<PedidoPage />} />
-        <Route path="/admin" element={<AdminGate />} />
-        <Route path="*" element={<ClientePage />} />
+        <Route path="/admin"     element={<AdminGate />} />
+        <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
   );
