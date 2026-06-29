@@ -45,6 +45,7 @@ export default function ClientePage() {
   const [endCompl, setEndCompl] = useState("");
   const [unidadeId, setUnidadeId] = useState("");
   const [unidadeSetor, setUnidadeSetor] = useState("");
+  const [horario, setHorario] = useState("");
   const navigate = useNavigate();
 
   const carregar = useCallback(async () => {
@@ -79,12 +80,14 @@ export default function ClientePage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   const adicionarAoCarrinho = (item) => {
-    setCart((c) => [...c, { ...item, uid: Math.random().toString(36).slice(2) }]);
+    // qtd = 1 por padrão; se > 1, o item já traz o campo preenchido
+    const qtd = item.qtd || 1;
+    setCart((c) => [...c, { ...item, qtd, uid: Math.random().toString(36).slice(2) }]);
     setConfigurando(null);
   };
   const removerDoCarrinho = (uid) => setCart((c) => c.filter((i) => i.uid !== uid));
 
-  const total = cart.reduce((s, it) => s + it.preco, 0);
+  const total = cart.reduce((s, it) => s + it.preco * (it.qtd || 1), 0);
   const totalUnidades = cart.length;
 
   const cap = config?.capacidade || 0;
@@ -103,11 +106,15 @@ export default function ClientePage() {
       const nome = u?.nome || "";
       return [nome, unidadeSetor.trim() && `Setor: ${unidadeSetor.trim()}`].filter(Boolean).join(" · ");
     }
-    return "Retirada no local";
+    return horario ? `Retirada no local · ${horario}` : "Retirada no local";
   };
 
   // valida se os campos do modo escolhido estão preenchidos
   const entregaValida = () => {
+    if (entregaModo === "retirada") {
+      const horarios = settings?.horarios_retirada || [];
+      return horarios.length === 0 || !!horario;
+    }
     if (entregaModo === "endereco") return endRua.trim() && endBairro.trim();
     if (entregaModo === "unidade") return !!unidadeId;
     return true;
@@ -121,7 +128,7 @@ export default function ClientePage() {
     try {
       const itens = cart.map((it) => ({
         burgerId: it.burgerId,
-        qtd: 1,
+        qtd: it.qtd || 1,
         observacao: it.obs || "",
         removidos: it.removidos || [],
       }));
@@ -227,13 +234,16 @@ export default function ClientePage() {
                     ? <img src={it.foto_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
                     : <span className="text-2xl">{it.emoji}</span>}
                   <div className="flex-1">
-                    <p className="font-bold">{it.nome}</p>
+                    <p className="font-bold">
+                      {it.qtd > 1 && <span className="text-mustard font-black">{it.qtd}x </span>}
+                      {it.nome}
+                    </p>
                     {(it.removidos || []).length > 0 && (
                       <p className="text-xs text-burnt font-bold">sem: {it.removidos.join(", ")}</p>
                     )}
                     {it.obs && <p className="text-xs text-mut italic">↳ {it.obs}</p>}
                   </div>
-                  <span className="font-black text-mustard whitespace-nowrap">{brl(it.preco)}</span>
+                  <span className="font-black text-mustard whitespace-nowrap">{brl(it.preco * (it.qtd || 1))}</span>
                   <button onClick={() => removerDoCarrinho(it.uid)} className="text-mut hover:text-burnt p-1">
                     <Trash2 size={16} />
                   </button>
@@ -316,6 +326,7 @@ export default function ClientePage() {
                   endCompl={endCompl} setEndCompl={setEndCompl}
                   unidadeId={unidadeId} setUnidadeId={setUnidadeId}
                   unidadeSetor={unidadeSetor} setUnidadeSetor={setUnidadeSetor}
+                  horario={horario} setHorario={setHorario}
                 />
 
                 <div>
@@ -394,7 +405,7 @@ export default function ClientePage() {
               {/* Lanches */}
               <div>
                 <p className="text-xs font-bold text-mut uppercase tracking-wide mb-2">
-                  {cart.length} {cart.length === 1 ? "lanche" : "lanches"}
+                  {cart.reduce((s, it) => s + (it.qtd || 1), 0)} {cart.reduce((s, it) => s + (it.qtd || 1), 0) === 1 ? "item" : "itens"}
                 </p>
                 <div className="space-y-2">
                   {cart.map((it) => (
@@ -403,13 +414,16 @@ export default function ClientePage() {
                         ? <img src={it.foto_url} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
                         : <span className="text-xl">{it.emoji}</span>}
                       <div className="flex-1">
-                        <p className="font-bold text-sm">{it.nome}</p>
+                        <p className="font-bold text-sm">
+                          {it.qtd > 1 && <span className="text-mustard">{it.qtd}x </span>}
+                          {it.nome}
+                        </p>
                         {(it.removidos || []).length > 0 && (
                           <p className="text-xs text-burnt font-bold">sem: {it.removidos.join(", ")}</p>
                         )}
                         {it.obs && <p className="text-xs text-mut italic">↳ {it.obs}</p>}
                       </div>
-                      <span className="font-black text-mustard text-sm">{brl(it.preco)}</span>
+                      <span className="font-black text-mustard text-sm">{brl(it.preco * (it.qtd || 1))}</span>
                     </div>
                   ))}
                 </div>
@@ -509,6 +523,9 @@ function CardapioCard({ burger, onEscolher }) {
 function Configurador({ burger, ingredients, onCancel, onAdd }) {
   const [removidos, setRemovidos] = useState([]);
   const [obs, setObs] = useState("");
+  const [qtd, setQtd] = useState(1);
+
+  const maxQtd = burger.qtd_maxima || 99;
 
   const ingMap = Object.fromEntries(ingredients.map((i) => [i.id, i]));
   const ingredientesDoLanche = (burger.ficha || [])
@@ -527,6 +544,7 @@ function Configurador({ burger, ingredients, onCancel, onAdd }) {
       foto_url: burger.foto_url || null,
       removidos,
       obs: obs.trim(),
+      qtd,
     });
 
   return (
@@ -602,12 +620,40 @@ function Configurador({ burger, ingredients, onCancel, onAdd }) {
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-coal border-t border-graph p-4">
+        <div className="sticky bottom-0 bg-coal border-t border-graph p-4 space-y-3">
+          {/* Seletor de quantidade */}
+          <div className="flex items-center justify-between gap-3 bg-ink rounded-xl px-4 py-3 border border-graph">
+            <span className="font-bold text-sm">Quantidade</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setQtd((q) => Math.max(1, q - 1))}
+                className="w-9 h-9 rounded-full bg-graph hover:bg-mustard hover:text-ink font-black text-lg flex items-center justify-center transition"
+              >
+                −
+              </button>
+              <span className="font-black text-xl w-6 text-center">{qtd}</span>
+              <button
+                onClick={() => setQtd((q) => Math.min(maxQtd, q + 1))}
+                disabled={qtd >= maxQtd}
+                className="w-9 h-9 rounded-full bg-graph hover:bg-mustard hover:text-ink font-black text-lg flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                +
+              </button>
+            </div>
+            <span className="font-black text-mustard text-sm w-20 text-right">
+              {brl(Number(burger.preco) * qtd)}
+            </span>
+          </div>
+          {burger.qtd_maxima && qtd >= burger.qtd_maxima && (
+            <p className="text-xs text-[#E8C977] text-center font-bold">
+              Máximo de {burger.qtd_maxima} unidades por pedido para este produto.
+            </p>
+          )}
           <button
             onClick={adicionar}
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-mustard to-burnt text-ink font-black active:scale-[0.99] transition flex items-center justify-center gap-2"
           >
-            <Plus size={18} /> Adicionar ao carrinho
+            <Plus size={18} /> Adicionar {qtd > 1 ? `${qtd}x ` : ""}ao carrinho
           </button>
         </div>
       </div>
@@ -637,8 +683,9 @@ function EntregaSelector(props) {
   if (settings?.entrega_endereco) modos.push({ id: "endereco", label: "Entrega", icon: Home });
   if (settings?.entrega_unidade) modos.push({ id: "unidade", label: "Unidade", icon: MapPin });
 
-  // se só tem retirada (ou nada configurado), não mostra nada extra
-  if (modos.length <= 1 && modo === "retirada") return null;
+  // se só tem retirada (ou nada configurado) E não tem horários, não mostra nada extra
+  const horarios = settings?.horarios_retirada || [];
+  if (modos.length <= 1 && modo === "retirada" && horarios.length === 0) return null;
 
   const inputCls = "w-full bg-ink rounded-lg px-3 py-2.5 text-sm border border-graph focus:border-mustard outline-none";
 
@@ -663,6 +710,16 @@ function EntregaSelector(props) {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {modo === "retirada" && horarios.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-mut font-bold">Horário de retirada</p>
+          <select className={inputCls} value={props.horario || ""} onChange={(e) => props.setHorario(e.target.value)}>
+            <option value="">Selecione um horário...</option>
+            {horarios.map((h, i) => <option key={i} value={h}>{h}</option>)}
+          </select>
         </div>
       )}
 
