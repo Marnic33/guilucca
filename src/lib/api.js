@@ -55,6 +55,7 @@ export async function saveBurger(burger) {
     emoji: burger.emoji,
     foto_url: burger.foto_url || null,
     permite_personalizar: burger.permite_personalizar !== false,
+    qtd_maxima: burger.qtd_maxima ? Number(burger.qtd_maxima) : null,
   };
 
   let burgerId = burger.id;
