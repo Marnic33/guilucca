@@ -5,7 +5,7 @@ import {
   ArrowLeft, Phone, Flame, Package, ClipboardList, TrendingUp,
   ListChecks, X, Printer, ShoppingBag, LogOut, Settings, Copy, Palette,
   Archive, History, ChevronDown, ChevronRight, Calendar, Wallet,
-  Image as ImageIcon, Upload, Bell, MapPin,
+  Image as ImageIcon, Upload, Bell, MapPin, Clock,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import {
@@ -843,7 +843,7 @@ function LanchesCadastro({ data, reload }) {
   const { burgers, ingredients } = data;
   const [editing, setEditing] = useState(null);
 
-  const novo = () => setEditing({ id: null, nome: "", descricao: "", preco: "", emoji: "🍔", ficha: [], permite_personalizar: true, _isNew: true });
+  const novo = () => setEditing({ id: null, nome: "", descricao: "", preco: "", emoji: "🍔", ficha: [], permite_personalizar: true, qtd_maxima: null, _isNew: true });
 
   const salvar = async (burger) => { await saveBurger(burger); setEditing(null); reload(); };
   const remover = async (id) => { await deleteBurger(id); reload(); };
@@ -1000,6 +1000,24 @@ function LancheForm({ burger, ingredients, onSave, onCancel }) {
         </button>
       </label>
 
+      {/* Quantidade máxima por pedido */}
+      <div className="bg-ink rounded-xl p-3 border border-graph">
+        <label className="text-xs font-bold text-mut mb-1.5 block uppercase tracking-wide">
+          Quantidade máxima por pedido (deixe vazio = sem limite)
+        </label>
+        <input
+          type="number"
+          min="1"
+          value={form.qtd_maxima || ""}
+          onChange={(e) => set("qtd_maxima", e.target.value ? Number(e.target.value) : null)}
+          placeholder="Ex: 10"
+          className="w-full bg-coal rounded-lg px-4 py-2.5 border border-graph outline-none focus:border-mustard text-sm"
+        />
+        <p className="text-[11px] text-mut/60 mt-1.5">
+          O cliente não consegue adicionar mais do que esse número de unidades deste produto num pedido.
+        </p>
+      </div>
+
       <div className="border-t border-graph pt-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-black flex items-center gap-2"><ListChecks size={18} className="text-mustard" /> Ficha técnica</h4>
@@ -1081,6 +1099,8 @@ function Aparencia({ data, reload }) {
   const [entEndereco, setEntEndereco] = useState(!!s.entrega_endereco);
   const [entUnidade, setEntUnidade] = useState(!!s.entrega_unidade);
   const [novaUnidade, setNovaUnidade] = useState("");
+  const [horariosRetirada, setHorariosRetirada] = useState(s.horarios_retirada || []);
+  const [novoHorario, setNovoHorario] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
@@ -1140,6 +1160,7 @@ function Aparencia({ data, reload }) {
         entrega_retirada: entRetirada,
         entrega_endereco: entEndereco,
         entrega_unidade: entUnidade,
+        horarios_retirada: horariosRetirada,
       });
       setOk(true);
       setTimeout(() => setOk(false), 2500);
@@ -1286,6 +1307,56 @@ function Aparencia({ data, reload }) {
         <p className="text-sm text-mut">Escolha as opções que o cliente pode usar ao pedir. Se marcar mais de uma, ele seleciona no checkout.</p>
 
         <ToggleRow titulo="Retirada no local" sub="Cliente retira no ponto de venda (evento, local fixo)." on={entRetirada} onToggle={() => setEntRetirada((v) => !v)} />
+
+        {/* Horários de retirada — só aparece quando retirada está ligada */}
+        {entRetirada && (
+          <div className="bg-ink rounded-xl p-3 border border-graph ml-2">
+            <p className="text-xs font-bold text-mut mb-2 uppercase tracking-wide flex items-center gap-1.5">
+              <Clock size={13} /> Horários disponíveis para retirada
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input
+                value={novoHorario}
+                onChange={(e) => setNovoHorario(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && novoHorario.trim()) {
+                    setHorariosRetirada((h) => [...h, novoHorario.trim()]);
+                    setNovoHorario("");
+                  }
+                }}
+                placeholder="Ex: 12h00"
+                className="flex-1 bg-coal rounded-lg px-3 py-2 border border-graph outline-none focus:border-mustard text-sm"
+              />
+              <button
+                onClick={() => {
+                  if (novoHorario.trim()) {
+                    setHorariosRetirada((h) => [...h, novoHorario.trim()]);
+                    setNovoHorario("");
+                  }
+                }}
+                className="px-3 py-2 rounded-lg bg-mustard text-ink font-black text-sm"
+              >
+                +
+              </button>
+            </div>
+            {horariosRetirada.length === 0 ? (
+              <p className="text-[11px] text-mut/60">Nenhum horário cadastrado — o cliente não verá seletor de horário.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {horariosRetirada.map((h, i) => (
+                  <span key={i} className="flex items-center gap-1.5 bg-coal rounded-lg px-3 py-1.5 text-sm font-bold border border-graph">
+                    {h}
+                    <button onClick={() => setHorariosRetirada((arr) => arr.filter((_, j) => j !== i))}
+                      className="text-mut hover:text-burnt ml-1">
+                      <X size={13} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-mut/60 mt-2">Os horários salvam junto com o botão "Salvar alterações".</p>
+          </div>
+        )}
         <ToggleRow titulo="Endereço de entrega" sub="Cliente informa rua, bairro, CEP e complemento." on={entEndereco} onToggle={() => setEntEndereco((v) => !v)} />
         <ToggleRow titulo="Escolher unidade / fábrica" sub="Cliente seleciona de uma lista e informa o setor/sala." on={entUnidade} onToggle={() => setEntUnidade((v) => !v)} />
 
