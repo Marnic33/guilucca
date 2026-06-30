@@ -2,8 +2,8 @@ import { useState } from "react";
 
 // Imagens hospedadas no Supabase Storage do Guilucca (bucket "logos")
 const IMG_LOGO     = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/logo-guilucca.png"; // TROQUE pela URL real do logo se diferente
-const IMG_HERO     = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Laranja_baguete.jpg";
-const IMG_QUEIJOS   = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Calabresa.jpg";
+const IMG_HERO     = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Forno_1.png";
+const IMG_QUEIJOS   = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Baguete_2.png";
 const IMG_LINGUICA  = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Calabresa_1.jpg";
 
 const VERMELHO = "#E8453C";
@@ -14,7 +14,7 @@ const BRANCO   = "#FFFFFF";
 
 const SABORES = [
   { img: IMG_QUEIJOS,  nome: "Dois Queijos",        desc: "Mussarela e requeijão cremoso" },
-  { img: IMG_LINGUICA, nome: "Linguiça com Queijo",  desc: "Defumada, dourada no forno" },
+  { img: IMG_LINGUICA, nome: "Calabresa com Queijo",  desc: "Defumada, dourada no forno" },
 ];
 
 export default function LandingPage() {
