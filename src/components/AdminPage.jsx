@@ -93,6 +93,7 @@ export default function AdminPage() {
   const tabs = [
     { id: "pedidos", label: "Pedidos", icon: <Bell size={18} />, badge: pendentesAprovacao },
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+    { id: "faturamento", label: "Faturamento", icon: <TrendingUp size={18} /> },
     { id: "cozinha", label: "Cozinha", icon: <Truck size={18} /> },
     { id: "compras", label: "Compras", icon: <Boxes size={18} /> },
     { id: "cadastro", label: "Ficha Técnica", icon: <ClipboardList size={18} /> },
@@ -145,6 +146,7 @@ export default function AdminPage() {
 
         {tab === "pedidos" && <Aprovacao data={data} reload={reload} />}
         {tab === "dashboard" && <Dashboard data={data} reload={reload} />}
+        {tab === "faturamento" && <Faturamento data={data} />}
         {tab === "cozinha" && <Cozinha data={data} reload={reload} />}
         {tab === "compras" && <Compras data={data} />}
         {tab === "cadastro" && <Cadastro data={data} reload={reload} />}
@@ -872,6 +874,158 @@ function avisarAceiteWhatsApp(order, settings) {
     `\n\nObrigado pela preferência! 🍔`;
   const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
   window.open(url, "_blank");
+}
+
+/* ---------- FATURAMENTO --------------------------------------------------- */
+function Faturamento({ data }) {
+  const { orders } = data;
+
+  // só pedidos com pagamento confirmado
+  const pagos = orders.filter((o) => o.pagamento_status === "pago");
+
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth();
+  const anoAtual = hoje.getFullYear();
+
+  // agrega faturamento por dia (últimos 30 dias)
+  const dias = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(hoje);
+    d.setDate(hoje.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    dias.push({ data: d, total: 0 });
+  }
+  const idxPorData = {};
+  dias.forEach((d, i) => {
+    idxPorData[d.data.toDateString()] = i;
+  });
+
+  let totalMes = 0;
+  let totalAno = 0;
+  let totalHoje = 0;
+  const hojeStr = new Date(hoje).setHours(0, 0, 0, 0);
+
+  for (const o of pagos) {
+    const dt = new Date(o.created_at);
+    const val = Number(o.total) || 0;
+    // dia (últimos 30)
+    const key = new Date(dt).toDateString();
+    if (key in idxPorData) dias[idxPorData[key]].total += val;
+    // mês atual
+    if (dt.getMonth() === mesAtual && dt.getFullYear() === anoAtual) totalMes += val;
+    // ano atual
+    if (dt.getFullYear() === anoAtual) totalAno += val;
+    // hoje
+    if (new Date(dt).setHours(0, 0, 0, 0) === hojeStr) totalHoje += val;
+  }
+
+  const maxDia = Math.max(1, ...dias.map((d) => d.total));
+  const totalPeriodo = dias.reduce((s, d) => s + d.total, 0);
+  const diasComVenda = dias.filter((d) => d.total > 0).length;
+  const mediaDia = diasComVenda > 0 ? totalPeriodo / diasComVenda : 0;
+
+  const nomesMes = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+  const fmtDataCurta = (d) =>
+    `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-black text-2xl">Faturamento</h2>
+        <p className="text-sm text-mut mt-1">Apenas pedidos com pagamento confirmado.</p>
+      </div>
+
+      {/* Cards de resumo */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-coal rounded-2xl border border-graph p-4">
+          <p className="text-xs font-bold text-mut uppercase tracking-wide">Hoje</p>
+          <p className="text-xl font-black text-mustard mt-1">{brl(totalHoje)}</p>
+        </div>
+        <div className="bg-coal rounded-2xl border border-graph p-4">
+          <p className="text-xs font-bold text-mut uppercase tracking-wide">Mês ({nomesMes[mesAtual]})</p>
+          <p className="text-xl font-black text-mustard mt-1">{brl(totalMes)}</p>
+        </div>
+        <div className="bg-coal rounded-2xl border border-graph p-4">
+          <p className="text-xs font-bold text-mut uppercase tracking-wide">Ano ({anoAtual})</p>
+          <p className="text-xl font-black text-mustard mt-1">{brl(totalAno)}</p>
+        </div>
+      </div>
+
+      {/* Gráfico de barras — últimos 30 dias */}
+      <div className="bg-coal rounded-2xl border border-graph p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="font-black flex items-center gap-2">
+            <TrendingUp size={18} className="text-mustard" /> Últimos 30 dias
+          </h3>
+          <div className="text-right">
+            <p className="text-xs text-mut">Total no período</p>
+            <p className="font-black text-mustard">{brl(totalPeriodo)}</p>
+          </div>
+        </div>
+
+        {totalPeriodo === 0 ? (
+          <p className="text-mut py-10 text-center">
+            Nenhum pagamento confirmado nos últimos 30 dias ainda.
+          </p>
+        ) : (
+          <>
+            {/* barras */}
+            <div className="flex items-end gap-1 h-48 border-b border-graph pb-0">
+              {dias.map((d, i) => {
+                const h = (d.total / maxDia) * 100;
+                const temVenda = d.total > 0;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                    {/* tooltip */}
+                    {temVenda && (
+                      <div className="absolute -top-1 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 bg-ink border border-graph rounded-lg px-2 py-1 whitespace-nowrap">
+                        <p className="text-[10px] text-mut">{fmtDataCurta(d.data)}</p>
+                        <p className="text-xs font-black text-mustard">{brl(d.total)}</p>
+                      </div>
+                    )}
+                    <div
+                      className={`w-full rounded-t transition-all ${temVenda ? "bg-gradient-to-t from-burnt to-mustard" : "bg-graph/30"}`}
+                      style={{ height: temVenda ? `${Math.max(4, h)}%` : "2px" }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            {/* eixo de datas (a cada 5 dias) */}
+            <div className="flex gap-1 mt-1.5">
+              {dias.map((d, i) => (
+                <div key={i} className="flex-1 text-center">
+                  {i % 5 === 0 && (
+                    <span className="text-[9px] text-mut">{fmtDataCurta(d.data)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Estatísticas extras */}
+      {totalPeriodo > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-coal rounded-2xl border border-graph p-4">
+            <p className="text-xs font-bold text-mut uppercase tracking-wide">Média por dia com venda</p>
+            <p className="text-lg font-black text-cream mt-1">{brl(mediaDia)}</p>
+          </div>
+          <div className="bg-coal rounded-2xl border border-graph p-4">
+            <p className="text-xs font-bold text-mut uppercase tracking-wide">Dias com venda (30d)</p>
+            <p className="text-lg font-black text-cream mt-1">{diasComVenda}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-[#2a2418] border border-[#5c4f2f] rounded-xl p-3 text-xs text-[#E8C977]">
+        💡 Este painel mostra os pedidos que estão no sistema. Ao fechar e arquivar um lote, os pedidos vão para o Histórico — o faturamento total de cada lote fica registrado lá.
+      </div>
+    </div>
+  );
 }
 
 /* ---------- CADASTRO ------------------------------------------------------ */
