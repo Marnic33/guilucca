@@ -56,6 +56,8 @@ export async function saveBurger(burger) {
     foto_url: burger.foto_url || null,
     permite_personalizar: burger.permite_personalizar !== false,
     qtd_maxima: burger.qtd_maxima ? Number(burger.qtd_maxima) : null,
+    estoque: (burger.estoque === "" || burger.estoque === null || burger.estoque === undefined)
+      ? null : Number(burger.estoque),
   };
 
   let burgerId = burger.id;
@@ -465,6 +467,27 @@ export async function arquivarLote({ orders, burgers, ingredients }) {
    já foi aceito. Pendentes e recusados ficam de fora. */
 export function pedidoConta(order) {
   return order.status !== "pendente" && order.status !== "recusado";
+}
+
+/* Quantidade já pedida de cada lanche (considerando pendentes + aceitos,
+   para não vender além do estoque enquanto o pedido aguarda aprovação). */
+export function quantidadePedidaPorLanche(orders) {
+  const m = {};
+  for (const o of orders) {
+    if (o.status === "recusado") continue; // recusado libera o estoque
+    for (const it of o.order_items || []) {
+      m[it.burger_id] = (m[it.burger_id] || 0) + it.qtd;
+    }
+  }
+  return m;
+}
+
+/* Estoque restante de um lanche. Retorna null se o lanche não tem controle
+   de estoque (campo estoque = null). */
+export function estoqueRestante(burger, pedidasMap) {
+  if (burger.estoque === null || burger.estoque === undefined) return null;
+  const pedidas = pedidasMap[burger.id] || 0;
+  return Math.max(0, burger.estoque - pedidas);
 }
 
 /* Explosão de ingredientes: pedidos × ficha técnica → lista consolidada.
