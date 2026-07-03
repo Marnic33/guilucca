@@ -48,6 +48,7 @@ export default function ClientePage() {
   const [unidadeId, setUnidadeId] = useState("");
   const [unidadeSetor, setUnidadeSetor] = useState("");
   const [horario, setHorario] = useState("");
+  const [dataEntrega, setDataEntrega] = useState("");
   const navigate = useNavigate();
 
   const carregar = useCallback(async () => {
@@ -97,27 +98,39 @@ export default function ClientePage() {
   const restantes = Infinity;
   const estouraCapacidade = false;
 
+  // formata data ISO para exibição (10/07)
+  const fmtData = (iso) => {
+    if (!iso) return "";
+    const [, m, d] = iso.split("-");
+    return `${d}/${m}`;
+  };
+
   // monta o texto de entrega conforme o modo escolhido
   const montarEntrega = () => {
+    // sufixo de agendamento (data + horário) comum a todos os modos
+    const agenda = [dataEntrega && fmtData(dataEntrega), horario].filter(Boolean).join(" ");
+    let base;
     if (entregaModo === "endereco") {
       const partes = [endRua.trim(), endBairro.trim(), endCep.trim() && `CEP ${endCep.trim()}`, endCompl.trim()]
         .filter(Boolean);
-      return partes.join(", ");
-    }
-    if (entregaModo === "unidade") {
+      base = "Entrega: " + partes.join(", ");
+    } else if (entregaModo === "unidade") {
       const u = unidades.find((x) => x.id === unidadeId);
       const nome = u?.nome || "";
-      return [nome, unidadeSetor.trim() && `Setor: ${unidadeSetor.trim()}`].filter(Boolean).join(" · ");
+      base = [nome, unidadeSetor.trim() && `Setor: ${unidadeSetor.trim()}`].filter(Boolean).join(" · ");
+    } else {
+      base = "Retirada no local";
     }
-    return horario ? `Retirada no local · ${horario}` : "Retirada no local";
+    return agenda ? `${base} · ${agenda}` : base;
   };
 
   // valida se os campos do modo escolhido estão preenchidos
   const entregaValida = () => {
-    if (entregaModo === "retirada") {
-      const horarios = settings?.horarios_retirada || [];
-      return horarios.length === 0 || !!horario;
-    }
+    const datas = settings?.datas_disponiveis || [];
+    const horarios = settings?.horarios_retirada || [];
+    // se há datas/horários cadastrados, são obrigatórios em qualquer modo
+    if (datas.length > 0 && !dataEntrega) return false;
+    if (horarios.length > 0 && !horario) return false;
     if (entregaModo === "endereco") return endRua.trim() && endBairro.trim();
     if (entregaModo === "unidade") return !!unidadeId;
     return true;
@@ -348,6 +361,7 @@ export default function ClientePage() {
                   unidadeId={unidadeId} setUnidadeId={setUnidadeId}
                   unidadeSetor={unidadeSetor} setUnidadeSetor={setUnidadeSetor}
                   horario={horario} setHorario={setHorario}
+                  data={dataEntrega} setData={setDataEntrega}
                 />
 
                 <div>
@@ -635,17 +649,7 @@ function Configurador({ burger, ingredients, restante, onCancel, onAdd }) {
             </div>
           )}
 
-          {/* Quando não permite personalizar: só mostra os ingredientes */}
-          {ingredientesDoLanche.length > 0 && burger.permite_personalizar === false && (
-            <div>
-              <p className="text-xs font-bold text-mut mb-2 uppercase tracking-wide">Ingredientes</p>
-              <div className="flex flex-wrap gap-2">
-                {ingredientesDoLanche.map((nome) => (
-                  <span key={nome} className="text-sm font-bold px-3 py-2 rounded-lg bg-graph text-cream">{nome}</span>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Quando não permite personalizar: não mostra ingredientes ao cliente */}
 
           <div>
             <p className="text-xs font-bold text-mut mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
@@ -723,9 +727,11 @@ function EntregaSelector(props) {
   if (settings?.entrega_endereco) modos.push({ id: "endereco", label: "Entrega", icon: Home });
   if (settings?.entrega_unidade) modos.push({ id: "unidade", label: "Unidade", icon: MapPin });
 
-  // se só tem retirada (ou nada configurado) E não tem horários, não mostra nada extra
   const horarios = settings?.horarios_retirada || [];
-  if (modos.length <= 1 && modo === "retirada" && horarios.length === 0) return null;
+  const datas = settings?.datas_disponiveis || [];
+
+  // se só tem retirada, sem datas e sem horários, não mostra nada extra
+  if (modos.length <= 1 && modo === "retirada" && horarios.length === 0 && datas.length === 0) return null;
 
   const inputCls = "w-full bg-ink rounded-lg px-3 py-2.5 text-sm border border-graph focus:border-mustard outline-none";
 
@@ -753,16 +759,7 @@ function EntregaSelector(props) {
         </div>
       )}
 
-      {modo === "retirada" && horarios.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs text-mut font-bold">Horário de retirada</p>
-          <select className={inputCls} value={props.horario || ""} onChange={(e) => props.setHorario(e.target.value)}>
-            <option value="">Selecione um horário...</option>
-            {horarios.map((h, i) => <option key={i} value={h}>{h}</option>)}
-          </select>
-        </div>
-      )}
-
+      {/* Campos específicos de endereço/unidade */}
       {modo === "endereco" && (
         <div className="space-y-2">
           <input className={inputCls} placeholder="Rua e número" value={props.endRua} onChange={(e) => props.setEndRua(e.target.value)} />
@@ -783,6 +780,36 @@ function EntregaSelector(props) {
           <input className={inputCls} placeholder="Setor / sala (opcional)" value={props.unidadeSetor} onChange={(e) => props.setUnidadeSetor(e.target.value)} />
         </div>
       )}
+
+      {/* Data e horário — valem para qualquer modo */}
+      {datas.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-mut font-bold">Data</p>
+          <select className={inputCls} value={props.data || ""} onChange={(e) => props.setData(e.target.value)}>
+            <option value="">Selecione uma data...</option>
+            {datas.map((d, i) => <option key={i} value={d}>{formatarDataClienteBR(d)}</option>)}
+          </select>
+        </div>
+      )}
+
+      {horarios.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-mut font-bold">Horário</p>
+          <select className={inputCls} value={props.horario || ""} onChange={(e) => props.setHorario(e.target.value)}>
+            <option value="">Selecione um horário...</option>
+            {horarios.map((h, i) => <option key={i} value={h}>{h}</option>)}
+          </select>
+        </div>
+      )}
     </div>
   );
+}
+
+/* Formata "2026-07-10" como "10/07 (sexta)" para o cliente */
+function formatarDataClienteBR(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dias = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")} · ${dias[dt.getDay()]}`;
 }
