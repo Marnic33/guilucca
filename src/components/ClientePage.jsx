@@ -8,6 +8,7 @@ import {
 import {
   listBurgers, getBatchConfig, listOrders, createOrder,
   totalLanchesPedidos, brl, getSettings, listIngredients, listUnidades,
+  quantidadePedidaPorLanche, estoqueRestante,
 } from "../lib/api";
 import { Brand, Spinner, CenterMessage } from "./ui";
 
@@ -24,6 +25,7 @@ export default function ClientePage() {
   const [config, setConfig] = useState(null);
   const [settings, setSettings] = useState(null);
   const [usados, setUsados] = useState(0);
+  const [pedidasMap, setPedidasMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [cart, setCart] = useState([]); // itens individuais
@@ -70,6 +72,7 @@ export default function ClientePage() {
         else if (s.entrega_unidade) setEntregaModo("unidade");
       }
       setUsados(totalLanchesPedidos(orders));
+      setPedidasMap(quantidadePedidaPorLanche(orders));
     } catch (e) {
       setErro("Não foi possível carregar o cardápio. Tente recarregar a página.");
     } finally {
@@ -90,9 +93,9 @@ export default function ClientePage() {
   const total = cart.reduce((s, it) => s + it.preco * (it.qtd || 1), 0);
   const totalUnidades = cart.length;
 
-  const cap = config?.capacidade || 0;
-  const restantes = cap > 0 ? Math.max(0, cap - usados) : Infinity;
-  const estouraCapacidade = cap > 0 && totalUnidades > restantes;
+  const cap = 0; // capacidade de lote removida — controle agora é por estoque de cada lanche
+  const restantes = Infinity;
+  const estouraCapacidade = false;
 
   // monta o texto de entrega conforme o modo escolhido
   const montarEntrega = () => {
@@ -209,9 +212,21 @@ export default function ClientePage() {
         </h2>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          {burgers.map((b) => (
-            <CardapioCard key={b.id} burger={b} onEscolher={() => setConfigurando(b)} />
-          ))}
+          {burgers.map((b) => {
+            // quantidade já no carrinho deste sabor
+            const noCarrinho = cart.filter((it) => it.burgerId === b.id)
+              .reduce((s, it) => s + (it.qtd || 1), 0);
+            const baseRestante = estoqueRestante(b, pedidasMap); // null = ilimitado
+            const restante = baseRestante === null ? null : Math.max(0, baseRestante - noCarrinho);
+            return (
+              <CardapioCard
+                key={b.id}
+                burger={b}
+                restante={restante}
+                onEscolher={() => setConfigurando(b)}
+              />
+            );
+          })}
           {burgers.length === 0 && (
             <p className="text-mut col-span-2 py-8 text-center">
               Nenhum lanche cadastrado ainda.
@@ -272,6 +287,12 @@ export default function ClientePage() {
         <Configurador
           burger={configurando}
           ingredients={ingredients}
+          restante={(() => {
+            const noCarrinho = cart.filter((it) => it.burgerId === configurando.id)
+              .reduce((s, it) => s + (it.qtd || 1), 0);
+            const base = estoqueRestante(configurando, pedidasMap);
+            return base === null ? null : Math.max(0, base - noCarrinho);
+          })()}
           onCancel={() => setConfigurando(null)}
           onAdd={adicionarAoCarrinho}
         />
@@ -491,16 +512,31 @@ function Shell({ children, marca, logo }) {
   );
 }
 
-function CardapioCard({ burger, onEscolher }) {
+function CardapioCard({ burger, restante, onEscolher }) {
+  const esgotado = restante !== null && restante <= 0;
+  const poucos = restante !== null && restante > 0 && restante <= 5;
   return (
-    <div className="bg-coal rounded-2xl border border-graph overflow-hidden flex flex-col hover:border-mustard/40 transition">
+    <div className={`bg-coal rounded-2xl border overflow-hidden flex flex-col transition ${
+      esgotado ? "border-graph opacity-60" : "border-graph hover:border-mustard/40"
+    }`}>
       {burger.foto_url ? (
-        <div className="aspect-square bg-ink overflow-hidden">
-          <img src={burger.foto_url} alt={burger.nome} className="w-full h-full object-cover" />
+        <div className="aspect-square bg-ink overflow-hidden relative">
+          <img src={burger.foto_url} alt={burger.nome}
+            className={`w-full h-full object-cover ${esgotado ? "grayscale" : ""}`} />
+          {esgotado && (
+            <div className="absolute inset-0 bg-black/60 grid place-items-center">
+              <span className="bg-burnt text-white font-black px-3 py-1 rounded-lg text-sm uppercase tracking-wide">Esgotado</span>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="h-32 bg-gradient-to-br from-graph to-ink grid place-items-center text-6xl select-none">
+        <div className="h-32 bg-gradient-to-br from-graph to-ink grid place-items-center text-6xl select-none relative">
           {burger.emoji || "🍔"}
+          {esgotado && (
+            <div className="absolute inset-0 bg-black/60 grid place-items-center">
+              <span className="bg-burnt text-white font-black px-3 py-1 rounded-lg text-sm uppercase tracking-wide">Esgotado</span>
+            </div>
+          )}
         </div>
       )}
       <div className="p-4 flex flex-col flex-1">
@@ -509,23 +545,39 @@ function CardapioCard({ burger, onEscolher }) {
           <span className="font-black text-mustard whitespace-nowrap">{brl(burger.preco)}</span>
         </div>
         <p className="text-sm text-mut mt-1.5 flex-1">{burger.descricao}</p>
+
+        {/* Selo de estoque */}
+        {restante !== null && !esgotado && (
+          <p className={`text-xs font-bold mt-2 ${poucos ? "text-burnt" : "text-mut"}`}>
+            {poucos ? `⚡ Últimas ${restante} unidades!` : `Restam ${restante} unidades`}
+          </p>
+        )}
+
         <button
           onClick={onEscolher}
-          className="mt-4 w-full py-2.5 rounded-xl bg-graph hover:bg-mustard hover:text-ink font-bold transition flex items-center justify-center gap-2"
+          disabled={esgotado}
+          className={`mt-4 w-full py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
+            esgotado
+              ? "bg-ink text-mut cursor-not-allowed"
+              : "bg-graph hover:bg-mustard hover:text-ink"
+          }`}
         >
-          <Plus size={16} /> Escolher
+          {esgotado ? "Esgotado" : <><Plus size={16} /> Escolher</>}
         </button>
       </div>
     </div>
   );
 }
 
-function Configurador({ burger, ingredients, onCancel, onAdd }) {
+function Configurador({ burger, ingredients, restante, onCancel, onAdd }) {
   const [removidos, setRemovidos] = useState([]);
   const [obs, setObs] = useState("");
   const [qtd, setQtd] = useState(1);
 
-  const maxQtd = burger.qtd_maxima || 99;
+  // limite = menor entre qtd_maxima do produto e estoque restante
+  const limiteProduto = burger.qtd_maxima || 99;
+  const limiteEstoque = restante === null ? 99 : restante;
+  const maxQtd = Math.max(1, Math.min(limiteProduto, limiteEstoque));
 
   const ingMap = Object.fromEntries(ingredients.map((i) => [i.id, i]));
   const ingredientesDoLanche = (burger.ficha || [])
