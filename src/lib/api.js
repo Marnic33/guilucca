@@ -490,6 +490,22 @@ export function estoqueRestante(burger, pedidasMap) {
   return Math.max(0, burger.estoque - pedidas);
 }
 
+/* Normaliza um telefone brasileiro para o formato do WhatsApp (55 + DDD + número).
+   Se o cliente esquecer o DDD, assume 11 por padrão. */
+export function normalizarTelefoneWhats(telefone, dddPadrao = "11") {
+  let d = String(telefone || "").replace(/\D/g, "");
+  // remove zeros à esquerda (ex: 011 -> 11)
+  d = d.replace(/^0+/, "");
+  // se já vier com DDI 55 e comprimento completo (12 ou 13 dígitos), mantém
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) return d;
+  // número com DDD: 10 dígitos (fixo) ou 11 (celular com 9)
+  if (d.length === 10 || d.length === 11) return "55" + d;
+  // número SEM DDD: 8 dígitos (fixo) ou 9 (celular) → adiciona o DDD padrão
+  if (d.length === 8 || d.length === 9) return "55" + dddPadrao + d;
+  // fallback: garante o 55 na frente
+  return d.startsWith("55") ? d : "55" + d;
+}
+
 /* Explosão de ingredientes: pedidos × ficha técnica → lista consolidada.
    Desconta ingredientes que o cliente removeu (campo `removidos` por item). */
 export function calcShoppingList(orders, burgers, ingredients) {
