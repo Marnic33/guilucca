@@ -5,7 +5,7 @@ import {
   ArrowLeft, Phone, Flame, Package, ClipboardList, TrendingUp,
   ListChecks, X, Printer, ShoppingBag, LogOut, Settings, Copy, Palette,
   Archive, History, ChevronDown, ChevronRight, Calendar, Wallet,
-  Image as ImageIcon, Upload, Bell, MapPin, Clock,
+  Image as ImageIcon, Upload, Bell, MapPin, Clock, MessageCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import {
@@ -15,7 +15,7 @@ import {
   listOrders, updateOrderStatus, setItemEntregues,
   getSettings, saveSettings,
   listLotes, arquivarLote, setPagamentoStatus,
-  aceitarPedido, recusarPedido, pedidoConta, deleteOrder,
+  aceitarPedido, recusarPedido, pedidoConta, deleteOrder, arquivarPedido,
   listUnidades, addUnidade, deleteUnidade,
   calcShoppingList, calcBurgerCounts, totalLanchesPedidos, brl,
 } from "../lib/api";
@@ -315,6 +315,7 @@ function Dashboard({ data, reload }) {
           <div className="space-y-3">
             {counts.map((c) => {
               const feitos = entreguesPorLanche[c.id] || 0;
+              const pct = c.total > 0 ? (feitos / c.total) * 100 : 0; // progresso do próprio lanche
               return (
               <div key={c.id}>
                 <div className="flex justify-between text-sm font-bold mb-1">
@@ -322,12 +323,9 @@ function Dashboard({ data, reload }) {
                   <span className="text-mustard">{feitos} de {c.total} entregues</span>
                 </div>
                 <div className="h-3 rounded-full bg-ink overflow-hidden relative">
-                  {/* barra total (clara) */}
-                  <div className="h-full rounded-full bg-graph absolute inset-0"
-                    style={{ width: `${(c.total / maxCount) * 100}%` }} />
-                  {/* barra entregue (colorida) por cima */}
-                  <div className="h-full rounded-full bg-gradient-to-r from-mustard to-burnt absolute inset-0 transition-all"
-                    style={{ width: `${(feitos / maxCount) * 100}%` }} />
+                  {/* barra de progresso: enche 100% quando todos entregues */}
+                  <div className="h-full rounded-full bg-gradient-to-r from-mustard to-burnt transition-all"
+                    style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );})}
@@ -400,6 +398,10 @@ function Compras({ data }) {
     () => calcShoppingList(orders, burgers, ingredients),
     [orders, burgers, ingredients]
   );
+  const lanches = useMemo(
+    () => calcBurgerCounts(orders, burgers),
+    [orders, burgers]
+  );
   const [comprados, setComprados] = useState({}); // visual: ingredienteId -> true
   const [gerando, setGerando] = useState(false);
 
@@ -412,7 +414,7 @@ function Compras({ data }) {
   const baixarPdf = async () => {
     setGerando(true);
     try {
-      await gerarPdfCompras({ lista, settings, totalLanches, totalPedidos });
+      await gerarPdfCompras({ lista, lanches, settings, totalLanches, totalPedidos });
     } catch (e) {
       alert("Não foi possível gerar o PDF. Tente novamente.");
     } finally {
@@ -438,9 +440,26 @@ function Compras({ data }) {
         </div>
       )}
 
+      {/* Lanches a produzir */}
+      {lanches.length > 0 && (
+        <div className="bg-coal rounded-2xl border border-graph p-4">
+          <p className="text-sm font-black text-mustard mb-3 flex items-center gap-2">
+            <ClipboardList size={16} /> Lanches a produzir
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {lanches.map((b) => (
+              <div key={b.id} className="flex items-center justify-between bg-ink rounded-lg px-3 py-2">
+                <span className="font-bold text-sm">{b.emoji} {b.nome}</span>
+                <span className="font-black text-mustard whitespace-nowrap">{b.total} un</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {lista.length > 0 && (
-        <p className="text-sm text-mut">
-          Toque num item para marcar como <strong className="text-cream">comprado</strong> enquanto faz o mercado.
+        <p className="text-sm text-mut font-black flex items-center gap-2 mt-2">
+          <Boxes size={16} className="text-mustard" /> Ingredientes para comprar
         </p>
       )}
 
@@ -476,7 +495,7 @@ function Compras({ data }) {
 }
 
 /* Gera o PDF da lista de compras com logo, data e totais (carrega jsPDF via CDN). */
-async function gerarPdfCompras({ lista, settings, totalLanches, totalPedidos }) {
+async function gerarPdfCompras({ lista, lanches, settings, totalLanches, totalPedidos }) {
   // carrega jsPDF sob demanda
   if (!window.jspdf) {
     await new Promise((resolve, reject) => {
@@ -507,7 +526,7 @@ async function gerarPdfCompras({ lista, settings, totalLanches, totalPedidos }) 
   y += 7;
   doc.setFontSize(11);
   doc.setFont(undefined, "normal");
-  doc.text("Lista de Compras", settings?.logo_url ? 38 : 15, y);
+  doc.text("Lista de Produção e Compras", settings?.logo_url ? 38 : 15, y);
   y += 10;
 
   doc.setFontSize(10);
@@ -517,6 +536,29 @@ async function gerarPdfCompras({ lista, settings, totalLanches, totalPedidos }) 
   doc.setDrawColor(200);
   doc.line(15, y, 195, y); y += 8;
 
+  // ── Lanches a produzir ──
+  if (lanches && lanches.length > 0) {
+    doc.setFontSize(13);
+    doc.setFont(undefined, "bold");
+    doc.text("Lanches a produzir", 15, y); y += 7;
+    doc.setFontSize(12);
+    lanches.forEach((b) => {
+      if (y > 280) { doc.addPage(); y = 20; }
+      doc.setFont(undefined, "normal");
+      doc.text(String(b.nome), 15, y);
+      doc.setFont(undefined, "bold");
+      doc.text(`${b.total} un`, 195, y, { align: "right" });
+      y += 7;
+    });
+    y += 4;
+    doc.setDrawColor(220);
+    doc.line(15, y, 195, y); y += 8;
+  }
+
+  // ── Ingredientes ──
+  doc.setFontSize(13);
+  doc.setFont(undefined, "bold");
+  doc.text("Ingredientes para comprar", 15, y); y += 7;
   doc.setFontSize(12);
   lista.forEach((item) => {
     if (y > 280) { doc.addPage(); y = 20; }
@@ -524,7 +566,7 @@ async function gerarPdfCompras({ lista, settings, totalLanches, totalPedidos }) 
     doc.text(String(item.nome), 15, y);
     doc.setFont(undefined, "bold");
     doc.text(`${item.qtd.toLocaleString("pt-BR")} ${item.unidade}`, 195, y, { align: "right" });
-    y += 8;
+    y += 7;
   });
 
   doc.save(`lista-compras-${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -548,7 +590,7 @@ function urlParaDataUrl(url) {
 /* ---------- COZINHA ------------------------------------------------------- */
 function Cozinha({ data, reload }) {
   const { orders } = data;
-  const pendentes = orders.filter((o) => o.status !== "concluido" && pedidoConta(o));
+  const pendentes = orders.filter((o) => o.status !== "concluido" && o.status !== "arquivado" && pedidoConta(o));
   const concluidos = orders.filter((o) => o.status === "concluido");
 
   // unidades ainda não entregues (para o resumo)
@@ -565,6 +607,7 @@ function Cozinha({ data, reload }) {
   const reabrir = async (id) => { await updateOrderStatus(id, "recebido"); reload(); };
   const mudarPagamento = async (id, status) => { await setPagamentoStatus(id, status); reload(); };
   const excluir = async (id) => { await deleteOrder(id); reload(); };
+  const arquivar = async (id) => { await arquivarPedido(id); reload(); };
 
   return (
     <div className="space-y-6">
@@ -593,7 +636,7 @@ function Cozinha({ data, reload }) {
           </p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
-            {pendentes.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} mudarPagamento={mudarPagamento} excluir={excluir} />)}
+            {pendentes.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} />)}
           </div>
         )}
       </div>
@@ -604,7 +647,7 @@ function Cozinha({ data, reload }) {
             <Check size={18} className="text-[#7BC96F]" /> Concluídos ({concluidos.length})
           </h3>
           <div className="grid sm:grid-cols-2 gap-3">
-            {concluidos.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} reabrir={reabrir} mudarPagamento={mudarPagamento} excluir={excluir} done />)}
+            {concluidos.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} reabrir={reabrir} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} done />)}
           </div>
         </div>
       )}
@@ -612,8 +655,10 @@ function Cozinha({ data, reload }) {
   );
 }
 
-function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, done }) {
-  const items = order.order_items || [];
+function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquivar, done }) {
+  const items = [...(order.order_items || [])].sort((a, b) =>
+    String(a.id).localeCompare(String(b.id))
+  );
   const totalUni = items.reduce((s, it) => s + it.qtd, 0);
   const feitasUni = items.reduce((s, it) => s + Math.min(it.entregues || 0, it.qtd), 0);
   const pagForma = PAGAMENTO_LABEL[order.pagamento_forma] || order.pagamento_forma || "—";
@@ -633,7 +678,9 @@ function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, done }
             </p>
           )}
           {order.entrega_modo === "retirada" && (
-            <p className="text-xs text-mut flex items-center gap-1 mt-1"><MapPin size={11} /> Retirada no local</p>
+            <p className="text-xs text-mut flex items-center gap-1 mt-1">
+              <MapPin size={11} /> {order.entrega_texto || "Retirada no local"}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -760,14 +807,50 @@ function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, done }
         })}
       </ul>
 
-      {done && reabrir && (
-        <button onClick={() => reabrir(order.id)}
-          className="w-full mt-1 py-2.5 rounded-xl bg-graph text-mut hover:text-cream font-bold flex items-center justify-center gap-2 transition">
-          <ArrowLeft size={16} /> Reabrir pedido
-        </button>
+      {done && (
+        <div className="mt-1 space-y-2">
+          {/* Avisar cliente via WhatsApp */}
+          <button onClick={() => avisarClienteWhatsApp(order)}
+            className="w-full py-2.5 rounded-xl bg-[#25D366] text-[#0a3d1c] font-black flex items-center justify-center gap-2 transition active:scale-[0.98]">
+            <MessageCircle size={16} /> Avisar cliente (WhatsApp)
+          </button>
+          <div className="flex gap-2">
+            {reabrir && (
+              <button onClick={() => reabrir(order.id)}
+                className="flex-1 py-2.5 rounded-xl bg-graph text-mut hover:text-cream font-bold flex items-center justify-center gap-2 transition">
+                <ArrowLeft size={16} /> Reabrir
+              </button>
+            )}
+            {arquivar && (
+              <button onClick={() => arquivar(order.id)}
+                className="flex-1 py-2.5 rounded-xl bg-graph text-mut hover:text-cream font-bold flex items-center justify-center gap-2 transition">
+                <Archive size={16} /> Arquivar
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+/* Abre o WhatsApp do cliente com uma mensagem pronta avisando que o pedido ficou pronto. */
+function avisarClienteWhatsApp(order) {
+  // normaliza o telefone: só dígitos, com DDI 55 na frente
+  let tel = String(order.telefone || "").replace(/\D/g, "");
+  if (tel.length <= 11) tel = "55" + tel; // adiciona DDI Brasil se não tiver
+  const itens = (order.order_items || [])
+    .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
+    .join("\n");
+  const msg =
+    `Olá, ${order.cliente}! 😊\n\n` +
+    `Seu pedido está pronto! ✅\n\n` +
+    `${itens}\n\n` +
+    `Total: ${brl(order.total)}\n` +
+    (order.entrega_texto ? `Entrega: ${order.entrega_texto}\n\n` : "\n") +
+    `Obrigado pela preferência! 🍔`;
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank");
 }
 
 /* ---------- CADASTRO ------------------------------------------------------ */
@@ -1089,6 +1172,7 @@ function Aparencia({ data, reload }) {
   const s = data.settings || {};
   const [marca, setMarca] = useState(s.marca || "BurgerFlow OS");
   const [titulo, setTitulo] = useState(s.banner_titulo || "");
+  const [selo, setSelo] = useState(s.banner_selo || "Lote aberto agora");
   const [sub, setSub] = useState(s.banner_sub || "");
   const [logoUrl, setLogoUrl] = useState(s.logo_url || null);
   const [bannerUrl, setBannerUrl] = useState(s.banner_url || null);
@@ -1153,7 +1237,7 @@ function Aparencia({ data, reload }) {
     setBusy(true);
     try {
       await saveSettings({
-        marca, banner_titulo: titulo, banner_sub: sub,
+        marca, banner_titulo: titulo, banner_sub: sub, banner_selo: selo,
         logo_url: logoUrl, banner_url: bannerUrl,
         pix_chave: pixChave, pix_nome: pixNome,
         somente_pix: somentePix,
@@ -1254,6 +1338,8 @@ function Aparencia({ data, reload }) {
         </div>
 
         <LabeledInput label="Nome da loja / marca" value={marca} onChange={setMarca} placeholder="Ex: Baguetes do João" />
+
+        <LabeledInput label="Selo do banner (etiqueta amarela)" value={selo} onChange={setSelo} placeholder="Ex: Lote aberto agora / Pedidos abertos" />
 
         <div>
           <label className="text-xs font-bold text-mut mb-1.5 block uppercase tracking-wide">Título do banner</label>
@@ -1411,7 +1497,7 @@ function Aparencia({ data, reload }) {
             {!bannerUrl && <div className="absolute -right-4 -top-6 text-[90px] opacity-20 rotate-12 select-none">🍔</div>}
             {logoUrl && <img src={logoUrl} alt="" className="w-12 h-12 rounded-lg object-cover mb-2" />}
             <p className="text-ink font-black text-[10px] uppercase tracking-[0.2em] bg-mustard inline-block px-2 py-0.5 rounded-full mb-2">
-              Lote aberto agora
+              {selo || "Lote aberto agora"}
             </p>
             <h1 className="text-2xl font-black leading-tight mb-1">{titulo || "Faça seu pedido."}</h1>
             <p className="text-cream/80 text-sm whitespace-pre-line">{sub || "Escolha seus itens e envie."}</p>
@@ -1595,7 +1681,7 @@ function Aprovacao({ data, reload }) {
                 <p className="text-xs text-mut flex items-center gap-1 mt-0.5">
                   <Phone size={11} /> {o.telefone} · {fmtHora(o.created_at)}
                 </p>
-                {o.entrega_modo && o.entrega_modo !== "retirada" && o.entrega_texto && (
+                {o.entrega_texto && (
                   <p className="text-xs text-cream flex items-start gap-1 mt-1">
                     <MapPin size={11} className="text-mustard shrink-0 mt-0.5" /> {o.entrega_texto}
                   </p>
