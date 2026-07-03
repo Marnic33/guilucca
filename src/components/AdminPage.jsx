@@ -253,9 +253,6 @@ function Dashboard({ data, reload }) {
         )}
       </div>
 
-      {/* Capacidade do lote */}
-      <CapacidadeCard config={config} usados={totalLanches} reload={reload} />
-
       {/* Fechar e arquivar lote */}
       {orders.length > 0 && (
         <div className="bg-coal rounded-2xl border border-graph p-5">
@@ -853,6 +850,30 @@ function avisarClienteWhatsApp(order) {
   window.open(url, "_blank");
 }
 
+/* Abre o WhatsApp avisando que o pedido foi ACEITO, já com a chave PIX para pagamento. */
+function avisarAceiteWhatsApp(order, settings) {
+  let tel = String(order.telefone || "").replace(/\D/g, "");
+  if (tel.length <= 11) tel = "55" + tel;
+  const itens = (order.order_items || [])
+    .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
+    .join("\n");
+  const pixChave = settings?.pix_chave;
+  const pixNome = settings?.pix_nome;
+  const blocoPix = pixChave
+    ? `\n💳 *Pagamento via PIX:*\nChave: ${pixChave}` + (pixNome ? `\nEm nome de: ${pixNome}` : "") +
+      `\nValor: ${brl(order.total)}\n\nApós pagar, é só nos avisar. 🙏`
+    : `\nTotal: ${brl(order.total)}`;
+  const msg =
+    `Olá, ${order.cliente}! 😊\n\n` +
+    `Seu pedido foi *confirmado*! ✅\n\n` +
+    `${itens}\n` +
+    (order.entrega_texto ? `\n📍 ${order.entrega_texto}\n` : "") +
+    blocoPix +
+    `\n\nObrigado pela preferência! 🍔`;
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank");
+}
+
 /* ---------- CADASTRO ------------------------------------------------------ */
 function Cadastro({ data, reload }) {
   const [sub, setSub] = useState("lanches");
@@ -926,7 +947,7 @@ function LanchesCadastro({ data, reload }) {
   const { burgers, ingredients } = data;
   const [editing, setEditing] = useState(null);
 
-  const novo = () => setEditing({ id: null, nome: "", descricao: "", preco: "", emoji: "🍔", ficha: [], permite_personalizar: true, qtd_maxima: null, _isNew: true });
+  const novo = () => setEditing({ id: null, nome: "", descricao: "", preco: "", emoji: "🍔", ficha: [], permite_personalizar: true, qtd_maxima: null, estoque: null, _isNew: true });
 
   const salvar = async (burger) => { await saveBurger(burger); setEditing(null); reload(); };
   const remover = async (id) => { await deleteBurger(id); reload(); };
@@ -1082,6 +1103,24 @@ function LancheForm({ burger, ingredients, onSave, onCancel }) {
           <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${form.permite_personalizar !== false ? "translate-x-5" : ""}`} />
         </button>
       </label>
+
+      {/* Estoque disponível */}
+      <div className="bg-ink rounded-xl p-3 border border-graph">
+        <label className="text-xs font-bold text-mut mb-1.5 block uppercase tracking-wide">
+          Estoque disponível (deixe vazio = ilimitado)
+        </label>
+        <input
+          type="number"
+          min="0"
+          value={form.estoque === null || form.estoque === undefined ? "" : form.estoque}
+          onChange={(e) => set("estoque", e.target.value === "" ? null : Number(e.target.value))}
+          placeholder="Ex: 20"
+          className="w-full bg-coal rounded-lg px-4 py-2.5 border border-graph outline-none focus:border-mustard text-sm"
+        />
+        <p className="text-[11px] text-mut/60 mt-1.5">
+          Quantas unidades deste produto estão disponíveis. O cardápio mostra "restam X" e esgota quando chega a zero.
+        </p>
+      </div>
 
       {/* Quantidade máxima por pedido */}
       <div className="bg-ink rounded-xl p-3 border border-graph">
@@ -1633,6 +1672,7 @@ function Historico({ data }) {
 
 /* ---------- APROVAÇÃO (fila de aceite de pedidos) ------------------------ */
 function Aprovacao({ data, reload }) {
+  const settings = data.settings || {};
   const pendentes = data.orders
     .filter((o) => o.status === "pendente")
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -1641,6 +1681,14 @@ function Aprovacao({ data, reload }) {
   const aceitar = async (id) => {
     setProcessando(id);
     try { await aceitarPedido(id); reload(); } finally { setProcessando(null); }
+  };
+  const aceitarEAvisar = async (order) => {
+    setProcessando(order.id);
+    try {
+      await aceitarPedido(order.id);
+      avisarAceiteWhatsApp(order, settings); // abre WhatsApp com PIX
+      reload();
+    } finally { setProcessando(null); }
   };
   const recusar = async (id) => {
     setProcessando(id);
@@ -1705,14 +1753,20 @@ function Aprovacao({ data, reload }) {
               ))}
             </ul>
 
-            <div className="flex gap-2">
-              <button onClick={() => recusar(o.id)} disabled={busy}
-                className="flex-1 py-3 rounded-xl bg-graph text-mut hover:text-burnt font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                <X size={18} /> Recusar
-              </button>
-              <button onClick={() => aceitar(o.id)} disabled={busy}
-                className="flex-1 py-3 rounded-xl bg-[#7BC96F] text-[#11200d] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
-                <Check size={18} /> {busy ? "..." : "Aceitar"}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button onClick={() => recusar(o.id)} disabled={busy}
+                  className="flex-1 py-3 rounded-xl bg-graph text-mut hover:text-burnt font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                  <X size={18} /> Recusar
+                </button>
+                <button onClick={() => aceitar(o.id)} disabled={busy}
+                  className="flex-1 py-3 rounded-xl bg-[#7BC96F] text-[#11200d] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
+                  <Check size={18} /> {busy ? "..." : "Aceitar"}
+                </button>
+              </div>
+              <button onClick={() => aceitarEAvisar(o)} disabled={busy}
+                className="w-full py-3 rounded-xl bg-[#25D366] text-[#0a3d1c] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
+                <MessageCircle size={18} /> Aceitar e avisar cliente (WhatsApp + PIX)
               </button>
             </div>
           </div>
