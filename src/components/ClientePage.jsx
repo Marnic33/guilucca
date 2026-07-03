@@ -188,7 +188,7 @@ export default function ClientePage() {
           )}
           <div className="relative">
           <p className="text-ink font-black text-xs uppercase tracking-[0.2em] bg-mustard inline-block px-2.5 py-1 rounded-full mb-3">
-            Lote aberto agora
+            {settings?.banner_selo || "Lote aberto agora"}
           </p>
           <h1 className="text-4xl font-black leading-[1.05] tracking-tight mb-2">
             {settings?.banner_titulo || "Monte seu pedido. A gente cuida do fogo."}
