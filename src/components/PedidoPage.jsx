@@ -84,7 +84,7 @@ export default function PedidoPage() {
             <p className="font-black text-lg text-[#E8C977]">Aguardando confirmação</p>
             <p className="text-sm text-mut mt-1">
               Seu pedido foi enviado e está aguardando a equipe confirmar. Assim que for aceito,
-              o preparo começa e esta página avisa. 🍔
+              as informações de pagamento (PIX) vão aparecer aqui para você pagar. 🍔
             </p>
           </div>
         )}
@@ -167,7 +167,10 @@ export default function PedidoPage() {
           </div>
         )}
 
-        <PagamentoBox order={order} settings={settings} onInformar={() => setOrder((o) => ({ ...o, pagamento_status: "informado" }))} />
+        {/* Pagamento — só aparece depois que o pedido é aceito (não pendente/recusado) */}
+        {order.status !== "pendente" && order.status !== "recusado" && (
+          <PagamentoBox order={order} settings={settings} onInformar={() => setOrder((o) => ({ ...o, pagamento_status: "informado" }))} />
+        )}
       </main>
     </Shell>
   );
