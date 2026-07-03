@@ -16,6 +16,7 @@ import {
   getSettings, saveSettings,
   listLotes, arquivarLote, setPagamentoStatus,
   aceitarPedido, recusarPedido, pedidoConta, deleteOrder, arquivarPedido,
+  normalizarTelefoneWhats,
   listUnidades, addUnidade, deleteUnidade,
   calcShoppingList, calcBurgerCounts, totalLanchesPedidos, brl,
 } from "../lib/api";
@@ -835,9 +836,7 @@ function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquiv
 
 /* Abre o WhatsApp do cliente com uma mensagem pronta avisando que o pedido ficou pronto. */
 function avisarClienteWhatsApp(order) {
-  // normaliza o telefone: só dígitos, com DDI 55 na frente
-  let tel = String(order.telefone || "").replace(/\D/g, "");
-  if (tel.length <= 11) tel = "55" + tel; // adiciona DDI Brasil se não tiver
+  const tel = normalizarTelefoneWhats(order.telefone);
   const itens = (order.order_items || [])
     .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
     .join("\n");
@@ -854,8 +853,7 @@ function avisarClienteWhatsApp(order) {
 
 /* Abre o WhatsApp avisando que o pedido foi ACEITO, já com a chave PIX para pagamento. */
 function avisarAceiteWhatsApp(order, settings) {
-  let tel = String(order.telefone || "").replace(/\D/g, "");
-  if (tel.length <= 11) tel = "55" + tel;
+  const tel = normalizarTelefoneWhats(order.telefone);
   const itens = (order.order_items || [])
     .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
     .join("\n");
