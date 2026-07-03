@@ -357,21 +357,9 @@ export default function ClientePage() {
                       <p className="font-bold text-mustard flex items-center gap-2">
                         <Smartphone size={18} /> Aceitamos somente PIX
                       </p>
-                      {settings?.pix_chave && (
-                        <div className="mt-2 bg-coal rounded-lg p-2.5">
-                          <p className="text-xs text-mut mb-1">Chave PIX{settings.pix_nome ? ` · ${settings.pix_nome}` : ""}:</p>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 text-sm font-mono break-all">{settings.pix_chave}</code>
-                            <button
-                              type="button"
-                              onClick={() => { navigator.clipboard?.writeText(settings.pix_chave); setPixCopiado(true); setTimeout(() => setPixCopiado(false), 2000); }}
-                              className="px-3 py-1.5 rounded-lg bg-mustard text-ink font-black text-xs flex items-center gap-1 whitespace-nowrap"
-                            >
-                              {pixCopiado ? <><Check size={13} /> Copiado</> : <><Copy size={13} /> Copiar</>}
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      <p className="text-xs text-mut mt-2">
+                        A chave PIX para pagamento aparece assim que a equipe confirmar seu pedido. 🙏
+                      </p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-4 gap-2">
