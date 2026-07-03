@@ -212,7 +212,8 @@ export async function listOrders() {
   const { data, error } = await supabase
     .from("orders")
     .select("*, order_items(*)")
-    .order("created_at");
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   if (error) throw error;
   return data;
 }
@@ -304,6 +305,12 @@ export async function recusarPedido(id) {
 export async function deleteOrder(id) {
   const { error } = await supabase.from("orders").delete().eq("id", id);
   if (error) throw error;
+}
+
+/* Arquiva um pedido individual: sai da cozinha, mas continua contando
+   no faturamento e na lista (status 'arquivado'). */
+export async function arquivarPedido(id) {
+  await updateOrderStatus(id, "arquivado");
 }
 
 /* Baixa por UNIDADE. Define quantas unidades de uma linha de item já saíram
