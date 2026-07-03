@@ -1358,6 +1358,15 @@ function ToggleRow({ titulo, sub, on, onToggle }) {
   );
 }
 
+/* Formata "2026-07-10" como "10/07 (sex)" */
+function formatarDataBR(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dias = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")} (${dias[dt.getDay()]})`;
+}
+
 /* ---------- APARÊNCIA (marca + textos do cardápio) ----------------------- */
 function Aparencia({ data, reload }) {
   const s = data.settings || {};
@@ -1376,6 +1385,8 @@ function Aparencia({ data, reload }) {
   const [novaUnidade, setNovaUnidade] = useState("");
   const [horariosRetirada, setHorariosRetirada] = useState(s.horarios_retirada || []);
   const [novoHorario, setNovoHorario] = useState("");
+  const [datasDisponiveis, setDatasDisponiveis] = useState(s.datas_disponiveis || []);
+  const [novaData, setNovaData] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
@@ -1436,6 +1447,7 @@ function Aparencia({ data, reload }) {
         entrega_endereco: entEndereco,
         entrega_unidade: entUnidade,
         horarios_retirada: horariosRetirada,
+        datas_disponiveis: datasDisponiveis,
       });
       setOk(true);
       setTimeout(() => setOk(false), 2500);
@@ -1579,17 +1591,57 @@ function Aparencia({ data, reload }) {
       {/* Entrega */}
       <div className="bg-coal rounded-2xl border border-graph p-5 space-y-4">
         <h3 className="font-black text-lg flex items-center gap-2">
-          <MapPin size={18} className="text-mustard" /> Entrega
+          <MapPin size={18} className="text-mustard" /> Entrega e Agenda
         </h3>
         <p className="text-sm text-mut">Escolha as opções que o cliente pode usar ao pedir. Se marcar mais de uma, ele seleciona no checkout.</p>
 
-        <ToggleRow titulo="Retirada no local" sub="Cliente retira no ponto de venda (evento, local fixo)." on={entRetirada} onToggle={() => setEntRetirada((v) => !v)} />
-
-        {/* Horários de retirada — só aparece quando retirada está ligada */}
-        {entRetirada && (
-          <div className="bg-ink rounded-xl p-3 border border-graph ml-2">
+        {/* Agenda: datas + horários (valem para retirada E entrega) */}
+        <div className="bg-ink rounded-xl p-3 border border-graph space-y-4">
+          {/* Datas disponíveis */}
+          <div>
             <p className="text-xs font-bold text-mut mb-2 uppercase tracking-wide flex items-center gap-1.5">
-              <Clock size={13} /> Horários disponíveis para retirada
+              <Calendar size={13} /> Datas disponíveis para pedido
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="date"
+                value={novaData}
+                onChange={(e) => setNovaData(e.target.value)}
+                className="flex-1 bg-coal rounded-lg px-3 py-2 border border-graph outline-none focus:border-mustard text-sm"
+              />
+              <button
+                onClick={() => {
+                  if (novaData && !datasDisponiveis.includes(novaData)) {
+                    setDatasDisponiveis((d) => [...d, novaData].sort());
+                    setNovaData("");
+                  }
+                }}
+                className="px-3 py-2 rounded-lg bg-mustard text-ink font-black text-sm"
+              >
+                +
+              </button>
+            </div>
+            {datasDisponiveis.length === 0 ? (
+              <p className="text-[11px] text-mut/60">Nenhuma data cadastrada — o cliente não verá seletor de data.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {datasDisponiveis.map((d, i) => (
+                  <span key={i} className="flex items-center gap-1.5 bg-coal rounded-lg px-3 py-1.5 text-sm font-bold border border-graph">
+                    {formatarDataBR(d)}
+                    <button onClick={() => setDatasDisponiveis((arr) => arr.filter((_, j) => j !== i))}
+                      className="text-mut hover:text-burnt ml-1">
+                      <X size={13} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Horários disponíveis */}
+          <div className="border-t border-graph pt-3">
+            <p className="text-xs font-bold text-mut mb-2 uppercase tracking-wide flex items-center gap-1.5">
+              <Clock size={13} /> Horários disponíveis
             </p>
             <div className="flex gap-2 mb-2">
               <input
@@ -1631,9 +1683,11 @@ function Aparencia({ data, reload }) {
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-mut/60 mt-2">Os horários salvam junto com o botão "Salvar alterações".</p>
           </div>
-        )}
+          <p className="text-[11px] text-mut/60">As datas e horários valem para retirada e entrega. Salvam com o botão "Salvar alterações".</p>
+        </div>
+
+        <ToggleRow titulo="Retirada no local" sub="Cliente retira no ponto de venda (evento, local fixo)." on={entRetirada} onToggle={() => setEntRetirada((v) => !v)} />
         <ToggleRow titulo="Endereço de entrega" sub="Cliente informa rua, bairro, CEP e complemento." on={entEndereco} onToggle={() => setEntEndereco((v) => !v)} />
         <ToggleRow titulo="Escolher unidade / fábrica" sub="Cliente seleciona de uma lista e informa o setor/sala." on={entUnidade} onToggle={() => setEntUnidade((v) => !v)} />
 
