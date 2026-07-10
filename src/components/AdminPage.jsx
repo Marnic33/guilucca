@@ -869,7 +869,7 @@ function avisarClienteWhatsApp(order) {
     `${itens}\n\n` +
     `Total: ${brl(order.total)}\n` +
     (order.entrega_texto ? `Entrega: ${order.entrega_texto}\n\n` : "\n") +
-    `Obrigado pela preferência! 🍔`;
+    `Obrigado pela preferência!`;
   const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
   window.open(url, "_blank");
 }
@@ -892,7 +892,7 @@ function avisarAceiteWhatsApp(order, settings) {
     `${itens}\n` +
     (order.entrega_texto ? `\n📍 ${order.entrega_texto}\n` : "") +
     blocoPix +
-    `\n\nObrigado pela preferência! 🍔`;
+    `\n\nObrigado pela preferência!`;
   const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
   window.open(url, "_blank");
 }
