@@ -5,7 +5,7 @@ import {
   ArrowLeft, Phone, Flame, Package, ClipboardList, TrendingUp,
   ListChecks, X, Printer, ShoppingBag, LogOut, Settings, Copy, Palette,
   Archive, History, ChevronDown, ChevronRight, Calendar, Wallet,
-  Image as ImageIcon, Upload, Bell, MapPin, Clock, MessageCircle,
+  Image as ImageIcon, Upload, Bell, MapPin, Clock, MessageCircle, CheckCheck,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import {
@@ -17,6 +17,7 @@ import {
   listLotes, arquivarLote, setPagamentoStatus,
   aceitarPedido, recusarPedido, pedidoConta, deleteOrder, arquivarPedido,
   normalizarTelefoneWhats,
+  listCategorias, addCategoria, deleteCategoria, entregarPedidoCompleto,
   listUnidades, addUnidade, deleteUnidade,
   calcShoppingList, calcBurgerCounts, totalLanchesPedidos, brl,
 } from "../lib/api";
@@ -36,13 +37,14 @@ export default function AdminPage() {
 
   const reload = useCallback(async () => {
     try {
-      const [ingredients, burgers, orders, config, settings, lotes, unidades] = await Promise.all([
+      const [ingredients, burgers, orders, config, settings, lotes, unidades, categorias] = await Promise.all([
         listIngredients(), listBurgers(), listOrders(), getBatchConfig(),
         getSettings().catch(() => null),
         listLotes().catch(() => []),
         listUnidades().catch(() => []),
+        listCategorias().catch(() => []),
       ]);
-      setData({ ingredients, burgers, orders, config, settings, lotes, unidades });
+      setData({ ingredients, burgers, orders, config, settings, lotes, unidades, categorias });
       setErro("");
     } catch (e) {
       setErro(
@@ -608,6 +610,7 @@ function Cozinha({ data, reload }) {
   const mudarPagamento = async (id, status) => { await setPagamentoStatus(id, status); reload(); };
   const excluir = async (id) => { await deleteOrder(id); reload(); };
   const arquivar = async (id) => { await arquivarPedido(id); reload(); };
+  const entregarTudo = async (id) => { await entregarPedidoCompleto(id); reload(); };
 
   return (
     <div className="space-y-6">
@@ -636,7 +639,7 @@ function Cozinha({ data, reload }) {
           </p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
-            {pendentes.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} />)}
+            {pendentes.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} entregarTudo={entregarTudo} />)}
           </div>
         )}
       </div>
@@ -655,7 +658,7 @@ function Cozinha({ data, reload }) {
   );
 }
 
-function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquivar, done }) {
+function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquivar, entregarTudo, done }) {
   const items = [...(order.order_items || [])].sort((a, b) =>
     String(a.id).localeCompare(String(b.id))
   );
@@ -806,6 +809,26 @@ function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquiv
           );
         })}
       </ul>
+
+      {/* Fechar o pedido inteiro de uma vez */}
+      {!done && entregarTudo && (() => {
+        const totalUnid = items.reduce((s, it) => s + it.qtd, 0);
+        const feitasUnid = items.reduce((s, it) => s + Math.min(it.entregues || 0, it.qtd), 0);
+        const faltam = totalUnid - feitasUnid;
+        if (faltam <= 0) return null;
+        return (
+          <button
+            onClick={() => {
+              if (confirm(`Dar baixa em todos os ${faltam} lanche(s) restantes do pedido de ${order.cliente}?`)) {
+                entregarTudo(order.id);
+              }
+            }}
+            className="w-full mt-1 py-3 rounded-xl bg-[#7BC96F] text-[#11200d] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition"
+          >
+            <CheckCheck size={18} /> Entregar tudo ({faltam} restante{faltam > 1 ? "s" : ""})
+          </button>
+        );
+      })()}
 
       {done && (
         <div className="mt-1 space-y-2">
@@ -1032,16 +1055,93 @@ function Cadastro({ data, reload }) {
   return (
     <div className="space-y-5">
       <div className="flex bg-coal rounded-xl p-1 border border-graph w-fit">
-        {[{ id: "lanches", label: "Lanches" }, { id: "ingredientes", label: "Ingredientes" }].map((s) => (
+        {[{ id: "lanches", label: "Lanches" }, { id: "categorias", label: "Categorias" }, { id: "ingredientes", label: "Ingredientes" }].map((s) => (
           <button key={s.id} onClick={() => setSub(s.id)}
             className={`px-4 py-2 rounded-lg font-bold text-sm transition ${sub === s.id ? "bg-mustard text-ink" : "text-mut"}`}>
             {s.label}
           </button>
         ))}
       </div>
-      {sub === "ingredientes"
-        ? <IngredientesCadastro data={data} reload={reload} />
+      {sub === "ingredientes" ? <IngredientesCadastro data={data} reload={reload} />
+        : sub === "categorias" ? <CategoriasCadastro data={data} reload={reload} />
         : <LanchesCadastro data={data} reload={reload} />}
+    </div>
+  );
+}
+
+/* ---------- CATEGORIAS (cadastro) ----------------------------------------- */
+function CategoriasCadastro({ data, reload }) {
+  const categorias = data.categorias || [];
+  const burgers = data.burgers || [];
+  const [nova, setNova] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  const criar = async () => {
+    if (!nova.trim()) return;
+    setSalvando(true);
+    try { await addCategoria(nova.trim()); setNova(""); reload(); }
+    finally { setSalvando(false); }
+  };
+
+  const remover = async (c) => {
+    const usados = burgers.filter((b) => b.categoria_id === c.id).length;
+    const msg = usados > 0
+      ? `Excluir "${c.nome}"? ${usados} produto(s) ficarão sem categoria.`
+      : `Excluir a categoria "${c.nome}"?`;
+    if (!confirm(msg)) return;
+    await deleteCategoria(c.id);
+    reload();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-coal rounded-2xl border border-graph p-5">
+        <h3 className="font-black text-lg mb-1">Categorias do cardápio</h3>
+        <p className="text-sm text-mut mb-4">
+          Agrupe os produtos em seções (ex: Baguetes Salgadas, Baguetes Doces, Coxinhas).
+          No cardápio, o cliente vê cada categoria como uma seção separada.
+        </p>
+
+        <div className="flex gap-2">
+          <input
+            value={nova}
+            onChange={(e) => setNova(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && criar()}
+            placeholder="Ex: Baguetes Salgadas"
+            className="flex-1 bg-ink rounded-xl px-4 py-3 border border-graph outline-none focus:border-mustard text-sm"
+          />
+          <button onClick={criar} disabled={!nova.trim() || salvando}
+            className="px-5 py-3 rounded-xl bg-mustard text-ink font-black disabled:opacity-40 flex items-center gap-2">
+            <Plus size={18} /> Criar
+          </button>
+        </div>
+      </div>
+
+      {categorias.length === 0 ? (
+        <p className="text-mut text-center py-8">
+          Nenhuma categoria ainda. Sem categorias, todos os produtos aparecem numa lista única.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {categorias.map((c) => {
+            const qtd = burgers.filter((b) => b.categoria_id === c.id).length;
+            return (
+              <div key={c.id} className="bg-coal rounded-xl border border-graph p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-black">{c.nome}</p>
+                  <p className="text-xs text-mut mt-0.5">
+                    {qtd === 0 ? "Nenhum produto" : `${qtd} produto${qtd > 1 ? "s" : ""}`}
+                  </p>
+                </div>
+                <button onClick={() => remover(c)}
+                  className="p-2 rounded-lg text-mut hover:text-burnt hover:bg-ink transition">
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1097,15 +1197,16 @@ function IngredientesCadastro({ data, reload }) {
 
 function LanchesCadastro({ data, reload }) {
   const { burgers, ingredients } = data;
+  const categorias = data.categorias || [];
   const [editing, setEditing] = useState(null);
 
-  const novo = () => setEditing({ id: null, nome: "", descricao: "", preco: "", emoji: "🍔", ficha: [], permite_personalizar: true, qtd_maxima: null, estoque: null, _isNew: true });
+  const novo = () => setEditing({ id: null, nome: "", descricao: "", preco: "", emoji: "🍔", ficha: [], permite_personalizar: true, qtd_maxima: null, estoque: null, categoria_id: null, _isNew: true });
 
   const salvar = async (burger) => { await saveBurger(burger); setEditing(null); reload(); };
   const remover = async (id) => { await deleteBurger(id); reload(); };
 
   if (editing) {
-    return <LancheForm burger={editing} ingredients={ingredients} onSave={salvar} onCancel={() => setEditing(null)} />;
+    return <LancheForm burger={editing} ingredients={ingredients} categorias={categorias} onSave={salvar} onCancel={() => setEditing(null)} />;
   }
 
   return (
@@ -1129,7 +1230,20 @@ function LanchesCadastro({ data, reload }) {
                   <span className="font-black text-mustard">{brl(b.preco)}</span>
                 </div>
                 <p className="text-sm text-mut mt-0.5">{b.descricao}</p>
-                <p className="text-xs text-mut/70 mt-2 flex items-center gap-1"><ListChecks size={13} /> {b.ficha.length} ingrediente(s)</p>
+                <div className="flex items-center gap-3 flex-wrap mt-2">
+                  <p className="text-xs text-mut/70 flex items-center gap-1"><ListChecks size={13} /> {b.ficha.length} ingrediente(s)</p>
+                  {(() => {
+                    const cat = categorias.find((c) => c.id === b.categoria_id);
+                    return cat ? (
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-ink border border-graph text-cream">{cat.nome}</span>
+                    ) : null;
+                  })()}
+                  {b.estoque !== null && b.estoque !== undefined && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-ink border border-graph text-mustard">
+                      estoque: {b.estoque}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex gap-2 mt-3">
@@ -1148,7 +1262,7 @@ function LanchesCadastro({ data, reload }) {
   );
 }
 
-function LancheForm({ burger, ingredients, onSave, onCancel }) {
+function LancheForm({ burger, ingredients, categorias = [], onSave, onCancel }) {
   const [form, setForm] = useState(burger);
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1255,6 +1369,28 @@ function LancheForm({ burger, ingredients, onSave, onCancel }) {
           <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${form.permite_personalizar !== false ? "translate-x-5" : ""}`} />
         </button>
       </label>
+
+      {/* Categoria */}
+      <div className="bg-ink rounded-xl p-3 border border-graph">
+        <label className="text-xs font-bold text-mut mb-1.5 block uppercase tracking-wide">
+          Categoria
+        </label>
+        <select
+          value={form.categoria_id || ""}
+          onChange={(e) => set("categoria_id", e.target.value || null)}
+          className="w-full bg-coal rounded-lg px-4 py-2.5 border border-graph outline-none focus:border-mustard text-sm"
+        >
+          <option value="">Sem categoria</option>
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>{c.nome}</option>
+          ))}
+        </select>
+        <p className="text-[11px] text-mut/60 mt-1.5">
+          {categorias.length === 0
+            ? 'Nenhuma categoria criada ainda. Vá em Cadastro → Categorias para criar.'
+            : "No cardápio, os produtos aparecem agrupados por categoria."}
+        </p>
+      </div>
 
       {/* Estoque disponível */}
       <div className="bg-ink rounded-xl p-3 border border-graph">
