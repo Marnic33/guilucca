@@ -84,7 +84,7 @@ export default function PedidoPage() {
             <p className="font-black text-lg text-[#E8C977]">Aguardando confirmação</p>
             <p className="text-sm text-mut mt-1">
               Seu pedido foi enviado e está aguardando a equipe confirmar. Assim que for aceito,
-              as informações de pagamento (PIX) vão aparecer aqui para você pagar. 🍔
+              as informações de pagamento (PIX) vão aparecer aqui para você pagar.
             </p>
           </div>
         )}
