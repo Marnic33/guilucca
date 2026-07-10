@@ -41,6 +41,7 @@ export default function ClientePage() {
   // entrega
   const [unidades, setUnidades] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [catAtiva, setCatAtiva] = useState("todos");
   const [entregaModo, setEntregaModo] = useState("retirada");
   const [endRua, setEndRua] = useState("");
   const [endBairro, setEndBairro] = useState("");
@@ -250,33 +251,75 @@ export default function ClientePage() {
             );
           }
 
-          // agrupa por categoria (na ordem cadastrada); sem categoria vai por último
-          const secoes = [];
+          // monta as abas: só categorias que têm produtos
+          const abas = [];
           for (const c of categorias) {
-            const doGrupo = burgers.filter((b) => b.categoria_id === c.id);
-            if (doGrupo.length > 0) secoes.push({ nome: c.nome, itens: doGrupo });
+            const qtd = burgers.filter((b) => b.categoria_id === c.id).length;
+            if (qtd > 0) abas.push({ id: c.id, nome: c.nome, qtd });
           }
           const semCategoria = burgers.filter(
             (b) => !b.categoria_id || !categorias.some((c) => c.id === b.categoria_id)
           );
-          if (semCategoria.length > 0) {
-            secoes.push({ nome: secoes.length > 0 ? "Outros" : null, itens: semCategoria });
+          if (semCategoria.length > 0 && abas.length > 0) {
+            abas.push({ id: "outros", nome: "Outros", qtd: semCategoria.length });
           }
 
-          return secoes.map((sec, i) => (
-            <div key={i} className={i > 0 ? "mt-8" : ""}>
-              {sec.nome && (
-                <div className="flex items-center gap-3 mb-4">
-                  <h3 className="font-black text-lg whitespace-nowrap">{sec.nome}</h3>
-                  <div className="h-px flex-1 bg-graph" />
-                  <span className="text-xs text-mut font-bold">{sec.itens.length}</span>
+          // sem categorias configuradas: lista simples, sem abas
+          if (abas.length === 0) {
+            return (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {burgers.map(renderCard)}
+              </div>
+            );
+          }
+
+          // filtra pela aba ativa
+          const visiveis =
+            catAtiva === "todos" ? burgers
+            : catAtiva === "outros" ? semCategoria
+            : burgers.filter((b) => b.categoria_id === catAtiva);
+
+          return (
+            <>
+              {/* Abas de categoria (rolagem horizontal no celular) */}
+              <div
+                className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              >
+                <button
+                  onClick={() => setCatAtiva("todos")}
+                  className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition border ${
+                    catAtiva === "todos"
+                      ? "bg-mustard text-ink border-transparent"
+                      : "bg-coal text-mut border-graph hover:text-cream"
+                  }`}
+                >
+                  Todos <span className="opacity-60">{burgers.length}</span>
+                </button>
+                {abas.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => setCatAtiva(a.id)}
+                    className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap transition border ${
+                      catAtiva === a.id
+                        ? "bg-mustard text-ink border-transparent"
+                        : "bg-coal text-mut border-graph hover:text-cream"
+                    }`}
+                  >
+                    {a.nome} <span className="opacity-60">{a.qtd}</span>
+                  </button>
+                ))}
+              </div>
+
+              {visiveis.length === 0 ? (
+                <p className="text-mut py-8 text-center">Nenhum produto nesta categoria.</p>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {visiveis.map(renderCard)}
                 </div>
               )}
-              <div className="grid sm:grid-cols-2 gap-4">
-                {sec.itens.map(renderCard)}
-              </div>
-            </div>
-          ));
+            </>
+          );
         })()}
 
         {cart.length > 0 && (
@@ -453,7 +496,7 @@ export default function ClientePage() {
             <div className="p-4 space-y-4">
               <div className="bg-mustard/10 border border-mustard/30 rounded-xl p-3">
                 <p className="text-sm font-bold text-mustard">
-                  Tudo certo? Se quiser outro sabor, é só adicionar — vai tudo junto neste pedido. 🍔
+                  Tudo certo? Se quiser outro sabor, é só adicionar — vai tudo junto neste pedido.
                 </p>
               </div>
 
