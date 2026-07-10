@@ -8,7 +8,7 @@ import {
 import {
   listBurgers, getBatchConfig, listOrders, createOrder,
   totalLanchesPedidos, brl, getSettings, listIngredients, listUnidades,
-  quantidadePedidaPorLanche, estoqueRestante,
+  quantidadePedidaPorLanche, estoqueRestante, listCategorias,
 } from "../lib/api";
 import { Brand, Spinner, CenterMessage } from "./ui";
 
@@ -40,6 +40,7 @@ export default function ClientePage() {
   const [pixCopiado, setPixCopiado] = useState(false);
   // entrega
   const [unidades, setUnidades] = useState([]);
+  const [categorias, setCategorias] = useState([]);
   const [entregaModo, setEntregaModo] = useState("retirada");
   const [endRua, setEndRua] = useState("");
   const [endBairro, setEndBairro] = useState("");
@@ -53,19 +54,21 @@ export default function ClientePage() {
 
   const carregar = useCallback(async () => {
     try {
-      const [b, c, orders, s, ings, unids] = await Promise.all([
+      const [b, c, orders, s, ings, unids, cats] = await Promise.all([
         listBurgers(),
         getBatchConfig(),
         listOrders(),
         getSettings().catch(() => null),
         listIngredients().catch(() => []),
         listUnidades().catch(() => []),
+        listCategorias().catch(() => []),
       ]);
       setBurgers(b);
       setConfig(c);
       setSettings(s);
       setIngredients(ings);
       setUnidades(unids);
+      setCategorias(cats);
       // define o modo de entrega inicial conforme o que a loja aceita
       if (s) {
         if (s.entrega_retirada !== false) setEntregaModo("retirada");
@@ -224,12 +227,12 @@ export default function ClientePage() {
           <Utensils size={20} className="text-mustard" /> Cardápio
         </h2>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          {burgers.map((b) => {
-            // quantidade já no carrinho deste sabor
+        {(() => {
+          // helper: renderiza um card com o estoque calculado
+          const renderCard = (b) => {
             const noCarrinho = cart.filter((it) => it.burgerId === b.id)
               .reduce((s, it) => s + (it.qtd || 1), 0);
-            const baseRestante = estoqueRestante(b, pedidasMap); // null = ilimitado
+            const baseRestante = estoqueRestante(b, pedidasMap);
             const restante = baseRestante === null ? null : Math.max(0, baseRestante - noCarrinho);
             return (
               <CardapioCard
@@ -239,13 +242,42 @@ export default function ClientePage() {
                 onEscolher={() => setConfigurando(b)}
               />
             );
-          })}
-          {burgers.length === 0 && (
-            <p className="text-mut col-span-2 py-8 text-center">
-              Nenhum lanche cadastrado ainda.
-            </p>
-          )}
-        </div>
+          };
+
+          if (burgers.length === 0) {
+            return (
+              <p className="text-mut py-8 text-center">Nenhum lanche cadastrado ainda.</p>
+            );
+          }
+
+          // agrupa por categoria (na ordem cadastrada); sem categoria vai por último
+          const secoes = [];
+          for (const c of categorias) {
+            const doGrupo = burgers.filter((b) => b.categoria_id === c.id);
+            if (doGrupo.length > 0) secoes.push({ nome: c.nome, itens: doGrupo });
+          }
+          const semCategoria = burgers.filter(
+            (b) => !b.categoria_id || !categorias.some((c) => c.id === b.categoria_id)
+          );
+          if (semCategoria.length > 0) {
+            secoes.push({ nome: secoes.length > 0 ? "Outros" : null, itens: semCategoria });
+          }
+
+          return secoes.map((sec, i) => (
+            <div key={i} className={i > 0 ? "mt-8" : ""}>
+              {sec.nome && (
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="font-black text-lg whitespace-nowrap">{sec.nome}</h3>
+                  <div className="h-px flex-1 bg-graph" />
+                  <span className="text-xs text-mut font-bold">{sec.itens.length}</span>
+                </div>
+              )}
+              <div className="grid sm:grid-cols-2 gap-4">
+                {sec.itens.map(renderCard)}
+              </div>
+            </div>
+          ));
+        })()}
 
         {cart.length > 0 && (
           <div className="mt-8">
