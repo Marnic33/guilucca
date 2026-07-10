@@ -58,6 +58,7 @@ export async function saveBurger(burger) {
     qtd_maxima: burger.qtd_maxima ? Number(burger.qtd_maxima) : null,
     estoque: (burger.estoque === "" || burger.estoque === null || burger.estoque === undefined)
       ? null : Number(burger.estoque),
+    categoria_id: burger.categoria_id || null,
   };
 
   let burgerId = burger.id;
@@ -359,6 +360,28 @@ export async function setItemEntregues(orderId, itemId, entregues) {
   return novoStatus;
 }
 
+/* Dá baixa em TODOS os itens do pedido de uma vez (entregues = qtd).
+   O baixa item-a-item continua funcionando normalmente. */
+export async function entregarPedidoCompleto(orderId) {
+  const { data: items, error } = await supabase
+    .from("order_items")
+    .select("id, qtd")
+    .eq("order_id", orderId);
+  if (error) throw error;
+
+  // marca cada linha como totalmente entregue
+  for (const it of items) {
+    const { error: eUp } = await supabase
+      .from("order_items")
+      .update({ entregues: it.qtd, entregue: true })
+      .eq("id", it.id);
+    if (eUp) throw eUp;
+  }
+
+  await updateOrderStatus(orderId, "concluido");
+  return "concluido";
+}
+
 /* ---------- SETTINGS (marca + textos do cardápio) ------------------------- */
 export async function getSettings() {
   const { data, error } = await supabase
@@ -374,6 +397,30 @@ export async function saveSettings(patch) {
     .from("settings")
     .update(patch)
     .eq("id", 1);
+  if (error) throw error;
+}
+
+/* ---------- CATEGORIAS ----------------------------------------------------- */
+export async function listCategorias() {
+  const { data, error } = await supabase
+    .from("categorias")
+    .select("*")
+    .order("ordem")
+    .order("nome");
+  if (error) throw error;
+  return data;
+}
+export async function addCategoria(nome) {
+  const { data, error } = await supabase
+    .from("categorias")
+    .insert({ nome })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+export async function deleteCategoria(id) {
+  const { error } = await supabase.from("categorias").delete().eq("id", id);
   if (error) throw error;
 }
 
