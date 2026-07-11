@@ -108,14 +108,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-ink text-cream">
       <header className="sticky top-0 z-30 bg-ink/95 backdrop-blur border-b border-graph no-print">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          {data.settings?.logo_url ? (
-            <div className="flex items-center gap-2.5">
-              <img src={data.settings.logo_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
-              <span className="font-black tracking-tight text-lg truncate max-w-[180px]">{data.settings.marca || "BurgerFlow OS"}</span>
-            </div>
-          ) : (
-            <Brand />
-          )}
+          <Brand />
           <div className="flex items-center gap-2">
             <Link to="/" className="text-mut hover:text-cream text-sm font-bold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-coal transition">
               <ShoppingBag size={15} /> Cardápio
