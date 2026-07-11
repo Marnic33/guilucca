@@ -82,9 +82,9 @@ export default function PedidoPage() {
           <div className="bg-[#2a2418] border border-[#5c4f2f] rounded-2xl p-5 mb-5 text-center">
             <Clock size={36} className="text-[#E8C977] mx-auto mb-2 animate-pulse" />
             <p className="font-black text-lg text-[#E8C977]">Aguardando confirmação</p>
-            <p className="text-sm text-mut mt-1">
-              Seu pedido foi enviado e está aguardando a equipe confirmar. Assim que for aceito,
-              as informações de pagamento (PIX) vão aparecer aqui para você pagar.
+            <p className="text-sm text-mut mt-1 whitespace-pre-line">
+              {settings?.msg_aguardando ||
+                "Seu pedido foi enviado e está aguardando a equipe confirmar. Assim que for aceito, as informações de pagamento (PIX) vão aparecer aqui para você pagar."}
             </p>
           </div>
         )}
