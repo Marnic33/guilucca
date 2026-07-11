@@ -1,16 +1,20 @@
 import React from "react";
-import { Flame } from "lucide-react";
+import { SISTEMA_NOME, SISTEMA_LOGO } from "../lib/marca";
 
 export function Brand({ size = "md" }) {
   const big = size === "lg";
+  // separa a última palavra (ex: "OS") para destacar em mustard
+  const partes = SISTEMA_NOME.trim().split(" ");
+  const ultima = partes.length > 1 ? partes.pop() : "";
+  const inicio = partes.join(" ");
   return (
     <div className="flex items-center gap-2.5">
-      <div className={`${big ? "w-11 h-11" : "w-9 h-9"} rounded-lg bg-gradient-to-br from-mustard to-burnt grid place-items-center shadow-lg shadow-burnt/20`}>
-        <Flame size={big ? 24 : 20} className="text-ink" />
+      <div className={`${big ? "w-11 h-11" : "w-9 h-9"} rounded-lg overflow-hidden grid place-items-center shadow-lg shadow-burnt/20 bg-coal shrink-0`}>
+        <img src={SISTEMA_LOGO} alt={SISTEMA_NOME} className="w-full h-full object-cover" />
       </div>
       <div className="leading-none">
-        <span className={`font-black tracking-tight ${big ? "text-2xl" : "text-lg"}`}>BurgerFlow</span>
-        <span className={`text-mustard font-black ${big ? "text-2xl" : "text-lg"}`}> OS</span>
+        <span className={`font-black tracking-tight ${big ? "text-2xl" : "text-lg"}`}>{inicio}</span>
+        {ultima && <span className={`text-mustard font-black ${big ? "text-2xl" : "text-lg"}`}> {ultima}</span>}
       </div>
     </div>
   );
