@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 // Imagens hospedadas no Supabase Storage do Guilucca (bucket "logos")
-const IMG_LOGO     = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/logo-guilucca.png"; // TROQUE pela URL real do logo se diferente
+const IMG_LOGO     = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/logo-1783193088005-e3w4zc.jpg";
 const IMG_HERO     = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Forno_1.png";
 const IMG_QUEIJOS   = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Baguete_2.png";
 const IMG_LINGUICA  = "https://rydjpazvhnbgpyzfuroa.supabase.co/storage/v1/object/public/logos/Calabresa_1.jpg";
