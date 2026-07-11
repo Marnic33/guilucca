@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+    import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   LayoutDashboard, Boxes, Truck, Plus, Minus, Trash2, Lock, Unlock, Check,
@@ -591,7 +591,7 @@ function urlParaDataUrl(url) {
 
 /* ---------- COZINHA ------------------------------------------------------- */
 function Cozinha({ data, reload }) {
-  const { orders } = data;
+  const { orders, settings } = data;
   const pendentes = orders.filter((o) => o.status !== "concluido" && o.status !== "arquivado" && pedidoConta(o));
   const concluidos = orders.filter((o) => o.status === "concluido");
 
@@ -639,7 +639,7 @@ function Cozinha({ data, reload }) {
           </p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
-            {pendentes.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} entregarTudo={entregarTudo} />)}
+            {pendentes.map((o) => <Ticket key={o.id} order={o} settings={settings} baixarUnidade={baixarUnidade} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} entregarTudo={entregarTudo} />)}
           </div>
         )}
       </div>
@@ -650,7 +650,7 @@ function Cozinha({ data, reload }) {
             <Check size={18} className="text-[#7BC96F]" /> Concluídos ({concluidos.length})
           </h3>
           <div className="grid sm:grid-cols-2 gap-3">
-            {concluidos.map((o) => <Ticket key={o.id} order={o} baixarUnidade={baixarUnidade} reabrir={reabrir} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} done />)}
+            {concluidos.map((o) => <Ticket key={o.id} order={o} settings={settings} baixarUnidade={baixarUnidade} reabrir={reabrir} mudarPagamento={mudarPagamento} excluir={excluir} arquivar={arquivar} done />)}
           </div>
         </div>
       )}
@@ -658,7 +658,7 @@ function Cozinha({ data, reload }) {
   );
 }
 
-function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquivar, entregarTudo, done }) {
+function Ticket({ order, settings, baixarUnidade, reabrir, mudarPagamento, excluir, arquivar, entregarTudo, done }) {
   const items = [...(order.order_items || [])].sort((a, b) =>
     String(a.id).localeCompare(String(b.id))
   );
@@ -833,7 +833,7 @@ function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquiv
       {done && (
         <div className="mt-1 space-y-2">
           {/* Avisar cliente via WhatsApp */}
-          <button onClick={() => avisarClienteWhatsApp(order)}
+          <button onClick={() => avisarClienteWhatsApp(order, settings)}
             className="w-full py-2.5 rounded-xl bg-[#25D366] text-[#0a3d1c] font-black flex items-center justify-center gap-2 transition active:scale-[0.98]">
             <MessageCircle size={16} /> Avisar cliente (WhatsApp)
           </button>
@@ -857,45 +857,7 @@ function Ticket({ order, baixarUnidade, reabrir, mudarPagamento, excluir, arquiv
   );
 }
 
-/* Abre o WhatsApp do cliente com uma mensagem pronta avisando que o pedido ficou pronto. */
-function avisarClienteWhatsApp(order) {
-  const tel = normalizarTelefoneWhats(order.telefone);
-  const itens = (order.order_items || [])
-    .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
-    .join("\n");
-  const msg =
-    `Olá, ${order.cliente}! 😊\n\n` +
-    `Seu pedido está pronto! ✅\n\n` +
-    `${itens}\n\n` +
-    `Total: ${brl(order.total)}\n` +
-    (order.entrega_texto ? `Entrega: ${order.entrega_texto}\n\n` : "\n") +
-    `Obrigado pela preferência!`;
-  const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
-  window.open(url, "_blank");
-}
 
-/* Abre o WhatsApp avisando que o pedido foi ACEITO, já com a chave PIX para pagamento. */
-function avisarAceiteWhatsApp(order, settings) {
-  const tel = normalizarTelefoneWhats(order.telefone);
-  const itens = (order.order_items || [])
-    .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
-    .join("\n");
-  const pixChave = settings?.pix_chave;
-  const pixNome = settings?.pix_nome;
-  const blocoPix = pixChave
-    ? `\n💳 *Pagamento via PIX:*\nChave: ${pixChave}` + (pixNome ? `\nEm nome de: ${pixNome}` : "") +
-      `\nValor: ${brl(order.total)}\n\nApós pagar, é só nos avisar. 🙏`
-    : `\nTotal: ${brl(order.total)}`;
-  const msg =
-    `Olá, ${order.cliente}! 😊\n\n` +
-    `Seu pedido foi *confirmado*! ✅\n\n` +
-    `${itens}\n` +
-    (order.entrega_texto ? `\n📍 ${order.entrega_texto}\n` : "") +
-    blocoPix +
-    `\n\nObrigado pela preferência!`;
-  const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
-  window.open(url, "_blank");
-}
 
 /* ---------- FATURAMENTO --------------------------------------------------- */
 function Faturamento({ data }) {
@@ -1494,6 +1456,22 @@ function ToggleRow({ titulo, sub, on, onToggle }) {
   );
 }
 
+/* Campo de texto multilinha para editar uma mensagem. */
+function MsgField({ label, hint, value, onChange }) {
+  return (
+    <div>
+      <label className="text-xs font-bold text-mut mb-1 block uppercase tracking-wide">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={5}
+        className="w-full bg-ink rounded-xl px-4 py-3 border border-graph outline-none focus:border-mustard text-sm resize-y font-mono leading-relaxed"
+      />
+      {hint && <p className="text-[11px] text-mut/60 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
 /* Formata "2026-07-10" como "10/07 (sex)" */
 function formatarDataBR(iso) {
   if (!iso) return "";
@@ -1509,6 +1487,12 @@ function Aparencia({ data, reload }) {
   const [marca, setMarca] = useState(s.marca || "BurgerFlow OS");
   const [titulo, setTitulo] = useState(s.banner_titulo || "");
   const [selo, setSelo] = useState(s.banner_selo || "Lote aberto agora");
+  const [msgAceite, setMsgAceite] = useState(s.msg_aceite || "");
+  const [msgRecusa, setMsgRecusa] = useState(s.msg_recusa || "");
+  const [msgPronto, setMsgPronto] = useState(s.msg_pronto || "");
+  const [msgAguardando, setMsgAguardando] = useState(s.msg_aguardando || "");
+  const [motivosRecusa, setMotivosRecusa] = useState(s.motivos_recusa || []);
+  const [novoMotivo, setNovoMotivo] = useState("");
   const [sub, setSub] = useState(s.banner_sub || "");
   const [logoUrl, setLogoUrl] = useState(s.logo_url || null);
   const [bannerUrl, setBannerUrl] = useState(s.banner_url || null);
@@ -1576,6 +1560,8 @@ function Aparencia({ data, reload }) {
     try {
       await saveSettings({
         marca, banner_titulo: titulo, banner_sub: sub, banner_selo: selo,
+        msg_aceite: msgAceite, msg_recusa: msgRecusa, msg_pronto: msgPronto,
+        msg_aguardando: msgAguardando, motivos_recusa: motivosRecusa,
         logo_url: logoUrl, banner_url: bannerUrl,
         pix_chave: pixChave, pix_nome: pixNome,
         somente_pix: somentePix,
@@ -1859,6 +1845,79 @@ function Aparencia({ data, reload }) {
         )}
       </div>
 
+      {/* Mensagens ao cliente */}
+      <div className="bg-coal rounded-2xl border border-graph p-5 space-y-4">
+        <h3 className="font-black text-lg flex items-center gap-2">
+          <MessageCircle size={18} className="text-mustard" /> Mensagens ao cliente
+        </h3>
+        <div className="bg-ink rounded-xl p-3 border border-graph">
+          <p className="text-xs text-mut leading-relaxed">
+            Use estas etiquetas no texto — elas são trocadas automaticamente:
+          </p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {["{cliente}", "{itens}", "{total}", "{pix}", "{entrega}", "{motivo}"].map((v) => (
+              <code key={v} className="text-[11px] font-mono px-2 py-1 rounded bg-coal border border-graph text-mustard">{v}</code>
+            ))}
+          </div>
+        </div>
+
+        <MsgField
+          label="WhatsApp — Pedido aceito (com PIX)"
+          hint="Enviada ao tocar em 'Aceitar e avisar'. Use {pix} para incluir a chave."
+          value={msgAceite} onChange={setMsgAceite}
+        />
+        <MsgField
+          label="WhatsApp — Pedido recusado"
+          hint="Enviada ao recusar com aviso. Use {motivo} para incluir o motivo escolhido."
+          value={msgRecusa} onChange={setMsgRecusa}
+        />
+        <MsgField
+          label="WhatsApp — Pedido pronto"
+          hint="Enviada ao tocar em 'Avisar cliente' num pedido concluído."
+          value={msgPronto} onChange={setMsgPronto}
+        />
+        <MsgField
+          label="Tela — Aguardando confirmação"
+          hint="Este texto NÃO é WhatsApp. Aparece na página de acompanhamento do cliente enquanto o pedido está pendente."
+          value={msgAguardando} onChange={setMsgAguardando}
+        />
+
+        {/* Motivos de recusa */}
+        <div className="bg-ink rounded-xl p-3 border border-graph">
+          <p className="text-xs font-bold text-mut mb-2 uppercase tracking-wide">Motivos de recusa prontos</p>
+          <div className="flex gap-2 mb-2">
+            <input
+              value={novoMotivo}
+              onChange={(e) => setNovoMotivo(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && novoMotivo.trim()) {
+                  setMotivosRecusa((m) => [...m, novoMotivo.trim()]); setNovoMotivo("");
+                }
+              }}
+              placeholder="Ex: Produto esgotado"
+              className="flex-1 bg-coal rounded-lg px-3 py-2 border border-graph outline-none focus:border-mustard text-sm"
+            />
+            <button
+              onClick={() => { if (novoMotivo.trim()) { setMotivosRecusa((m) => [...m, novoMotivo.trim()]); setNovoMotivo(""); } }}
+              className="px-3 py-2 rounded-lg bg-mustard text-ink font-black text-sm"
+            >+</button>
+          </div>
+          {motivosRecusa.length === 0 ? (
+            <p className="text-[11px] text-mut/60">Nenhum motivo cadastrado — serão usados os padrões.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {motivosRecusa.map((m, i) => (
+                <span key={i} className="flex items-center gap-1.5 bg-coal rounded-lg px-3 py-1.5 text-sm font-bold border border-graph">
+                  {m}
+                  <button onClick={() => setMotivosRecusa((arr) => arr.filter((_, j) => j !== i))}
+                    className="text-mut hover:text-burnt ml-1"><X size={13} /></button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <button onClick={salvar} disabled={busy}
         className="w-full py-3 rounded-xl bg-mustard text-ink font-black disabled:opacity-50 flex items-center justify-center gap-2">
         {ok ? <><Check size={18} /> Salvo!</> : busy ? "Salvando..." : "Salvar alterações"}
@@ -2019,6 +2078,10 @@ function Aprovacao({ data, reload }) {
     .filter((o) => o.status === "pendente")
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   const [processando, setProcessando] = useState(null);
+  const [recusandoId, setRecusandoId] = useState(null); // qual pedido está com o menu de motivo aberto
+  const motivos = settings.motivos_recusa || [
+    "Produto esgotado", "Fora da área de entrega", "Fora do horário de atendimento", "Não foi possível confirmar o pagamento",
+  ];
 
   const aceitar = async (id) => {
     setProcessando(id);
@@ -2034,7 +2097,15 @@ function Aprovacao({ data, reload }) {
   };
   const recusar = async (id) => {
     setProcessando(id);
-    try { await recusarPedido(id); reload(); } finally { setProcessando(null); }
+    try { await recusarPedido(id); reload(); } finally { setProcessando(null); setRecusandoId(null); }
+  };
+  const recusarEAvisar = async (order, motivo) => {
+    setProcessando(order.id);
+    try {
+      await recusarPedido(order.id);
+      avisarRecusaWhatsApp(order, settings, motivo); // abre WhatsApp com o motivo
+      reload();
+    } finally { setProcessando(null); setRecusandoId(null); }
   };
 
   const fmtHora = (s) =>
@@ -2096,20 +2167,45 @@ function Aprovacao({ data, reload }) {
             </ul>
 
             <div className="space-y-2">
-              <div className="flex gap-2">
-                <button onClick={() => recusar(o.id)} disabled={busy}
-                  className="flex-1 py-3 rounded-xl bg-graph text-mut hover:text-burnt font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                  <X size={18} /> Recusar
-                </button>
-                <button onClick={() => aceitar(o.id)} disabled={busy}
-                  className="flex-1 py-3 rounded-xl bg-[#7BC96F] text-[#11200d] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
-                  <Check size={18} /> {busy ? "..." : "Aceitar"}
-                </button>
-              </div>
-              <button onClick={() => aceitarEAvisar(o)} disabled={busy}
-                className="w-full py-3 rounded-xl bg-[#25D366] text-[#0a3d1c] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
-                <MessageCircle size={18} /> Aceitar e avisar cliente (WhatsApp + PIX)
-              </button>
+              {recusandoId === o.id ? (
+                <div className="bg-ink rounded-xl p-3 border border-burnt/40 space-y-2">
+                  <p className="text-xs font-bold text-mut uppercase tracking-wide">Motivo da recusa</p>
+                  {motivos.map((m, i) => (
+                    <button key={i} onClick={() => recusarEAvisar(o, m)} disabled={busy}
+                      className="w-full py-2.5 rounded-lg bg-coal hover:bg-graph text-left px-3 text-sm font-bold flex items-center justify-between gap-2 disabled:opacity-50 transition">
+                      {m}
+                      <MessageCircle size={15} className="text-[#25D366] shrink-0" />
+                    </button>
+                  ))}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setRecusandoId(null)} disabled={busy}
+                      className="flex-1 py-2 rounded-lg bg-graph text-mut font-bold text-sm disabled:opacity-50">
+                      Voltar
+                    </button>
+                    <button onClick={() => recusar(o.id)} disabled={busy}
+                      className="flex-1 py-2 rounded-lg bg-graph text-mut hover:text-burnt font-bold text-sm disabled:opacity-50">
+                      Recusar sem avisar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <button onClick={() => setRecusandoId(o.id)} disabled={busy}
+                      className="flex-1 py-3 rounded-xl bg-graph text-mut hover:text-burnt font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                      <X size={18} /> Recusar
+                    </button>
+                    <button onClick={() => aceitar(o.id)} disabled={busy}
+                      className="flex-1 py-3 rounded-xl bg-[#7BC96F] text-[#11200d] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
+                      <Check size={18} /> {busy ? "..." : "Aceitar"}
+                    </button>
+                  </div>
+                  <button onClick={() => aceitarEAvisar(o)} disabled={busy}
+                    className="w-full py-3 rounded-xl bg-[#25D366] text-[#0a3d1c] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
+                    <MessageCircle size={18} /> Aceitar e avisar cliente (WhatsApp + PIX)
+                  </button>
+                </>
+              )}
             </div>
           </div>
         );
