@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Boxes, Truck, Plus, Minus, Trash2, Lock, Unlock, Check,
   ArrowLeft, Phone, Flame, Package, ClipboardList, TrendingUp,
   ListChecks, X, Printer, ShoppingBag, LogOut, Settings, Copy, Palette,
-  Archive, History, ChevronDown, ChevronRight, Calendar, Wallet,
+  Archive, History, ChevronDown, ChevronUp, ChevronRight, Calendar, Wallet,
   Image as ImageIcon, Upload, Bell, MapPin, Clock, MessageCircle, CheckCheck,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -14,10 +14,10 @@ import {
   getBatchConfig, setBatchConfig,
   listOrders, updateOrderStatus, setItemEntregues,
   getSettings, saveSettings,
-  listLotes, arquivarLote, setPagamentoStatus,
+  listLotes, arquivarLote, deleteLote, setPagamentoStatus,
   aceitarPedido, recusarPedido, pedidoConta, deleteOrder, arquivarPedido,
   normalizarTelefoneWhats,
-  listCategorias, addCategoria, deleteCategoria, entregarPedidoCompleto,
+  listCategorias, addCategoria, deleteCategoria, reordenarCategorias, entregarPedidoCompleto,
   listUnidades, addUnidade, deleteUnidade,
   calcShoppingList, calcBurgerCounts, totalLanchesPedidos, brl,
 } from "../lib/api";
@@ -146,7 +146,7 @@ export default function AdminPage() {
         {tab === "cozinha" && <Cozinha data={data} reload={reload} />}
         {tab === "compras" && <Compras data={data} />}
         {tab === "cadastro" && <Cadastro data={data} reload={reload} />}
-        {tab === "historico" && <Historico data={data} />}
+        {tab === "historico" && <Historico data={data} reload={reload} />}
         {tab === "aparencia" && <Aparencia data={data} reload={reload} />}
       </div>
     </div>
@@ -1116,13 +1116,22 @@ function CategoriasCadastro({ data, reload }) {
     reload();
   };
 
+  const mover = async (index, direcao) => {
+    const novo = [...categorias];
+    const alvo = index + direcao;
+    if (alvo < 0 || alvo >= novo.length) return;
+    [novo[index], novo[alvo]] = [novo[alvo], novo[index]];
+    await reordenarCategorias(novo.map((c) => c.id));
+    reload();
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-coal rounded-2xl border border-graph p-5">
         <h3 className="font-black text-lg mb-1">Categorias do cardápio</h3>
         <p className="text-sm text-mut mb-4">
           Agrupe os produtos em seções (ex: Baguetes Salgadas, Baguetes Doces, Coxinhas).
-          No cardápio, o cliente vê cada categoria como uma seção separada.
+          No cardápio, o cliente vê cada categoria como uma seção separada, na ordem abaixo.
         </p>
 
         <div className="flex gap-2">
@@ -1146,11 +1155,23 @@ function CategoriasCadastro({ data, reload }) {
         </p>
       ) : (
         <div className="space-y-2">
-          {categorias.map((c) => {
+          <p className="text-xs text-mut px-1">Use as setas para mudar a ordem em que as categorias aparecem no cardápio.</p>
+          {categorias.map((c, i) => {
             const qtd = burgers.filter((b) => b.categoria_id === c.id).length;
             return (
-              <div key={c.id} className="bg-coal rounded-xl border border-graph p-4 flex items-center justify-between gap-3">
-                <div>
+              <div key={c.id} className="bg-coal rounded-xl border border-graph p-4 flex items-center gap-3">
+                {/* Setas de ordem */}
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => mover(i, -1)} disabled={i === 0}
+                    className="p-1 rounded text-mut hover:text-mustard hover:bg-ink disabled:opacity-25 disabled:cursor-not-allowed transition">
+                    <ChevronUp size={18} />
+                  </button>
+                  <button onClick={() => mover(i, 1)} disabled={i === categorias.length - 1}
+                    className="p-1 rounded text-mut hover:text-mustard hover:bg-ink disabled:opacity-25 disabled:cursor-not-allowed transition">
+                    <ChevronDown size={18} />
+                  </button>
+                </div>
+                <div className="flex-1">
                   <p className="font-black">{c.nome}</p>
                   <p className="text-xs text-mut mt-0.5">
                     {qtd === 0 ? "Nenhum produto" : `${qtd} produto${qtd > 1 ? "s" : ""}`}
@@ -2010,9 +2031,35 @@ function Aparencia({ data, reload }) {
 }
 
 /* ---------- HISTÓRICO (lotes arquivados) --------------------------------- */
-function Historico({ data }) {
+function Historico({ data, reload }) {
   const lotes = data.lotes || [];
+  const settings = data.settings || {};
   const [aberto, setAberto] = useState(null);
+  const [gerando, setGerando] = useState(false);
+
+  const excluirLote = async (lote) => {
+    const msg =
+      `Excluir o Lote #${lote.numero} (${brl(lote.total)})?\n\n` +
+      `Esta ação é permanente. O lote sai do histórico e o valor deixa de contar no faturamento total. ` +
+      `Se quiser guardar os dados antes, gere o PDF do lote primeiro.`;
+    if (!confirm(msg)) return;
+    await deleteLote(lote.id);
+    reload();
+  };
+
+  const pdfGeral = async () => {
+    setGerando(true);
+    try { await gerarPdfHistoricoGeral(lotes, settings); }
+    catch (e) { alert("Não foi possível gerar o PDF."); }
+    finally { setGerando(false); }
+  };
+
+  const pdfLote = async (lote) => {
+    setGerando(true);
+    try { await gerarPdfLote(lote, settings); }
+    catch (e) { alert("Não foi possível gerar o PDF."); }
+    finally { setGerando(false); }
+  };
 
   if (lotes.length === 0) {
     return (
@@ -2034,9 +2081,15 @@ function Historico({ data }) {
 
   return (
     <div className="space-y-3">
-      <h3 className="font-black text-xl flex items-center gap-2 mb-2">
-        <History size={20} className="text-mustard" /> Lotes arquivados ({lotes.length})
-      </h3>
+      <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <h3 className="font-black text-xl flex items-center gap-2">
+          <History size={20} className="text-mustard" /> Lotes arquivados ({lotes.length})
+        </h3>
+        <button onClick={pdfGeral} disabled={gerando}
+          className="px-4 py-2.5 rounded-xl bg-graph hover:bg-mustard hover:text-ink font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition">
+          <Printer size={16} /> {gerando ? "Gerando..." : "PDF geral"}
+        </button>
+      </div>
 
       {lotes.map((lote) => {
         const expand = aberto === lote.id;
@@ -2123,6 +2176,17 @@ function Historico({ data }) {
                     </div>
                   </div>
                 )}
+                {/* Ações do lote */}
+                <div className="flex gap-2 pt-2 border-t border-graph">
+                  <button onClick={() => pdfLote(lote)} disabled={gerando}
+                    className="flex-1 py-2.5 rounded-xl bg-graph hover:bg-mustard hover:text-ink font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition">
+                    <Printer size={16} /> PDF deste lote
+                  </button>
+                  <button onClick={() => excluirLote(lote)}
+                    className="px-4 py-2.5 rounded-xl bg-graph text-mut hover:text-burnt hover:bg-ink font-bold text-sm flex items-center justify-center gap-2 transition">
+                    <Trash2 size={16} /> Excluir
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -2130,6 +2194,126 @@ function Historico({ data }) {
       })}
     </div>
   );
+}
+
+/* ── PDF: histórico geral (resumo de todos os lotes) ── */
+async function gerarPdfHistoricoGeral(lotes, settings) {
+  if (!window.jspdf) {
+    await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const marca = settings?.marca || "Guilucca";
+  let y = 18;
+
+  doc.setFontSize(18); doc.setFont(undefined, "bold");
+  doc.text(marca, 15, y); y += 7;
+  doc.setFontSize(11); doc.setFont(undefined, "normal");
+  doc.text("Histórico de Lotes — Resumo Geral", 15, y); y += 6;
+  doc.setFontSize(10);
+  doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 15, y); y += 8;
+  doc.setDrawColor(200); doc.line(15, y, 195, y); y += 8;
+
+  // Cabeçalho da tabela
+  doc.setFont(undefined, "bold"); doc.setFontSize(11);
+  doc.text("Lote", 15, y);
+  doc.text("Data", 40, y);
+  doc.text("Pedidos", 110, y);
+  doc.text("Itens", 140, y);
+  doc.text("Total", 195, y, { align: "right" });
+  y += 5; doc.setDrawColor(220); doc.line(15, y, 195, y); y += 5;
+
+  doc.setFont(undefined, "normal");
+  let totalGeral = 0;
+  const ordenados = [...lotes].sort((a, b) => (a.numero || 0) - (b.numero || 0));
+  for (const l of ordenados) {
+    if (y > 275) { doc.addPage(); y = 20; }
+    const data = new Date(l.arquivado_em).toLocaleDateString("pt-BR");
+    doc.text(`#${l.numero}`, 15, y);
+    doc.text(data, 40, y);
+    doc.text(String(l.qtd_pedidos || 0), 110, y);
+    doc.text(String(l.qtd_lanches || 0), 140, y);
+    doc.text(brl(l.total), 195, y, { align: "right" });
+    totalGeral += Number(l.total) || 0;
+    y += 6;
+  }
+  y += 2; doc.setDrawColor(200); doc.line(15, y, 195, y); y += 7;
+  doc.setFont(undefined, "bold"); doc.setFontSize(13);
+  doc.text("Total geral", 15, y);
+  doc.text(brl(totalGeral), 195, y, { align: "right" });
+
+  doc.save(`historico-geral-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+/* ── PDF: um lote detalhado (com os pedidos) ── */
+async function gerarPdfLote(lote, settings) {
+  if (!window.jspdf) {
+    await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const marca = settings?.marca || "Guilucca";
+  const resumo = lote.resumo || {};
+  let y = 18;
+
+  doc.setFontSize(18); doc.setFont(undefined, "bold");
+  doc.text(marca, 15, y); y += 7;
+  doc.setFontSize(13); doc.setFont(undefined, "bold");
+  doc.text(`Lote #${lote.numero}`, 15, y); y += 6;
+  doc.setFontSize(10); doc.setFont(undefined, "normal");
+  doc.text(`Arquivado em: ${new Date(lote.arquivado_em).toLocaleString("pt-BR")}`, 15, y); y += 5;
+  doc.text(`${lote.qtd_pedidos || 0} pedido(s) · ${lote.qtd_lanches || 0} item(ns) · Total: ${brl(lote.total)}`, 15, y); y += 8;
+  doc.setDrawColor(200); doc.line(15, y, 195, y); y += 8;
+
+  // Produtos vendidos
+  if ((resumo.contagem || []).length > 0) {
+    doc.setFontSize(12); doc.setFont(undefined, "bold");
+    doc.text("Produtos vendidos", 15, y); y += 6;
+    doc.setFontSize(11); doc.setFont(undefined, "normal");
+    for (const c of resumo.contagem) {
+      if (y > 278) { doc.addPage(); y = 20; }
+      doc.text(String(c.nome), 15, y);
+      doc.setFont(undefined, "bold");
+      doc.text(`${c.total} un`, 195, y, { align: "right" });
+      doc.setFont(undefined, "normal");
+      y += 6;
+    }
+    y += 3;
+  }
+
+  // Pedidos detalhados
+  if ((resumo.pedidos || []).length > 0) {
+    if (y > 265) { doc.addPage(); y = 20; }
+    doc.setDrawColor(220); doc.line(15, y, 195, y); y += 7;
+    doc.setFontSize(12); doc.setFont(undefined, "bold");
+    doc.text(`Pedidos (${resumo.pedidos.length})`, 15, y); y += 7;
+    for (const p of resumo.pedidos) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFontSize(11); doc.setFont(undefined, "bold");
+      doc.text(`${p.cliente || "Cliente"}`, 15, y);
+      doc.text(brl(p.total), 195, y, { align: "right" });
+      y += 5;
+      doc.setFontSize(9); doc.setFont(undefined, "normal");
+      if (p.telefone) { doc.text(String(p.telefone), 15, y); y += 4; }
+      for (const it of (p.itens || [])) {
+        if (y > 285) { doc.addPage(); y = 20; }
+        let linha = `   ${it.qtd}x ${it.nome}`;
+        if ((it.removidos || []).length > 0) linha += ` (sem: ${it.removidos.join(", ")})`;
+        doc.text(linha, 15, y); y += 4;
+      }
+      y += 3;
+    }
+  }
+
+  doc.save(`lote-${lote.numero}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 /* ---------- APROVAÇÃO (fila de aceite de pedidos) ------------------------ */
