@@ -424,6 +424,18 @@ export async function deleteCategoria(id) {
   if (error) throw error;
 }
 
+/* Salva a ordem das categorias. Recebe um array de ids na ordem desejada
+   e grava o índice de cada um no campo `ordem`. */
+export async function reordenarCategorias(idsEmOrdem) {
+  for (let i = 0; i < idsEmOrdem.length; i++) {
+    const { error } = await supabase
+      .from("categorias")
+      .update({ ordem: i })
+      .eq("id", idsEmOrdem[i]);
+    if (error) throw error;
+  }
+}
+
 /* ---------- UNIDADES / FÁBRICAS ------------------------------------------- */
 export async function listUnidades() {
   const { data, error } = await supabase
@@ -455,6 +467,12 @@ export async function listLotes() {
     .order("arquivado_em", { ascending: false });
   if (error) throw error;
   return data;
+}
+
+/* Exclui um lote arquivado do histórico. Permanente. */
+export async function deleteLote(id) {
+  const { error } = await supabase.from("lotes").delete().eq("id", id);
+  if (error) throw error;
 }
 
 /* Arquiva o lote atual: monta um retrato completo, salva em `lotes`,
