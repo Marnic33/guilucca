@@ -651,6 +651,74 @@ function Cozinha({ data, reload }) {
   );
 }
 
+/* ── Mensagens de WhatsApp (semi-automático: abre o WhatsApp com o texto pronto) ── */
+
+/* Monta os blocos de variáveis a partir do pedido e settings. */
+function montarVariaveis(order, settings, motivo) {
+  const itens = (order.order_items || [])
+    .map((it) => `- ${it.qtd}x ${it.nome_lanche}`)
+    .join("\n");
+
+  const pixChave = settings?.pix_chave;
+  const pixNome = settings?.pix_nome;
+  const pix = pixChave
+    ? `💳 *Pagamento via PIX:*\nChave: ${pixChave}` + (pixNome ? `\nEm nome de: ${pixNome}` : "") +
+      `\nValor: ${brl(order.total)}\n\nApós pagar, é só nos avisar. 🙏`
+    : `Total: ${brl(order.total)}`;
+
+  const entrega = order.entrega_texto ? `📍 ${order.entrega_texto}` : "";
+
+  return {
+    "{cliente}": order.cliente || "",
+    "{itens}": itens,
+    "{total}": brl(order.total),
+    "{pix}": pix,
+    "{entrega}": entrega,
+    "{motivo}": motivo || "",
+  };
+}
+
+/* Aplica as variáveis num template de texto. */
+function aplicarTemplate(template, vars) {
+  let txt = template || "";
+  for (const [chave, valor] of Object.entries(vars)) {
+    txt = txt.split(chave).join(valor);
+  }
+  // limpa linhas em branco duplicadas quando alguma variável fica vazia
+  return txt.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/* Abre o WhatsApp do cliente com o texto informado. */
+function abrirWhatsApp(order, texto) {
+  const tel = normalizarTelefoneWhats(order.telefone);
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
+  window.open(url, "_blank");
+}
+
+/* Avisa que o pedido ficou PRONTO. */
+function avisarClienteWhatsApp(order, settings) {
+  const vars = montarVariaveis(order, settings);
+  const template = settings?.msg_pronto ||
+    "Olá, {cliente}!\n\nSeu pedido está pronto! ✅\n\n{itens}\n\nTotal: {total}\n{entrega}\n\nObrigado pela preferência!";
+  abrirWhatsApp(order, aplicarTemplate(template, vars));
+}
+
+/* Avisa que o pedido foi ACEITO, já com a chave PIX. */
+function avisarAceiteWhatsApp(order, settings) {
+  const vars = montarVariaveis(order, settings);
+  const template = settings?.msg_aceite ||
+    "Olá, {cliente}!\n\nSeu pedido foi *confirmado*! ✅\n\n{itens}\n{entrega}\n\n{pix}\n\nObrigado pela preferência!";
+  abrirWhatsApp(order, aplicarTemplate(template, vars));
+}
+
+/* Avisa que o pedido foi RECUSADO, com o motivo. */
+function avisarRecusaWhatsApp(order, settings, motivo) {
+  const vars = montarVariaveis(order, settings, motivo);
+  const template = settings?.msg_recusa ||
+    "Olá, {cliente}.\n\nInfelizmente não vamos conseguir atender seu pedido desta vez.\nMotivo: {motivo}\n\nPedimos desculpas pelo transtorno. 🙏";
+  abrirWhatsApp(order, aplicarTemplate(template, vars));
+}
+
 function Ticket({ order, settings, baixarUnidade, reabrir, mudarPagamento, excluir, arquivar, entregarTudo, done }) {
   const items = [...(order.order_items || [])].sort((a, b) =>
     String(a.id).localeCompare(String(b.id))
