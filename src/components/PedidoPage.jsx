@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Check, Clock, Flame, Package, ArrowLeft, Wallet, Copy, MapPin } from "lucide-react";
+import { Check, Clock, Flame, Package, ArrowLeft, Wallet, Copy, MapPin, RefreshCw } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { getOrder, brl, informarPagamento, getSettings } from "../lib/api";
 import { Brand, Spinner, CenterMessage } from "./ui";
@@ -93,9 +93,30 @@ export default function PedidoPage() {
           <div className="bg-[#2a1a18] border border-[#5c342f] rounded-2xl p-5 mb-5 text-center">
             <p className="font-black text-lg text-burnt">Pedido não confirmado</p>
             <p className="text-sm text-mut mt-1">
-              Este pedido não foi confirmado pela equipe. Se foi engano ou duplicidade, faça um novo pedido.
-              Em caso de dúvida, fale com a equipe.
+              Este pedido não foi confirmado pela equipe. Você pode refazer o pedido com os mesmos
+              itens e ajustar o que precisar — sem começar do zero.
             </p>
+            <button
+              onClick={() => {
+                try {
+                  const itens = (order.order_items || []).map((it) => ({
+                    burgerId: it.burger_id,
+                    qtd: it.qtd,
+                    removidos: it.removidos || [],
+                    obs: it.observacao || "",
+                  }));
+                  localStorage.setItem("refazer_pedido", JSON.stringify({
+                    cliente: order.cliente || "",
+                    telefone: order.telefone || "",
+                    itens,
+                  }));
+                } catch (_) {}
+                window.location.href = "/cardapio";
+              }}
+              className="mt-4 inline-flex items-center gap-2 bg-mustard text-ink font-black px-5 py-3 rounded-xl active:scale-[0.98] transition"
+            >
+              <RefreshCw size={18} /> Refazer este pedido
+            </button>
           </div>
         )}
 
