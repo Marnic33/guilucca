@@ -439,7 +439,7 @@ function Compras({ data }) {
       {lanches.length > 0 && (
         <div className="bg-coal rounded-2xl border border-graph p-4">
           <p className="text-sm font-black text-mustard mb-3 flex items-center gap-2">
-            <ClipboardList size={16} /> Lanches a produzir
+            <ClipboardList size={16} /> Produtos a produzir
           </p>
           <div className="grid sm:grid-cols-2 gap-2">
             {lanches.map((b) => (
@@ -535,7 +535,7 @@ async function gerarPdfCompras({ lista, lanches, settings, totalLanches, totalPe
   if (lanches && lanches.length > 0) {
     doc.setFontSize(13);
     doc.setFont(undefined, "bold");
-    doc.text("Lanches a produzir", 15, y); y += 7;
+    doc.text("Produtos a produzir", 15, y); y += 7;
     doc.setFontSize(12);
     lanches.forEach((b) => {
       if (y > 280) { doc.addPage(); y = 20; }
@@ -1078,7 +1078,7 @@ function Cadastro({ data, reload }) {
   return (
     <div className="space-y-5">
       <div className="flex bg-coal rounded-xl p-1 border border-graph w-fit">
-        {[{ id: "lanches", label: "Lanches" }, { id: "categorias", label: "Categorias" }, { id: "ingredientes", label: "Ingredientes" }].map((s) => (
+        {[{ id: "lanches", label: "Produtos" }, { id: "categorias", label: "Categorias" }, { id: "ingredientes", label: "Ingredientes" }].map((s) => (
           <button key={s.id} onClick={() => setSub(s.id)}
             className={`px-4 py-2 rounded-lg font-bold text-sm transition ${sub === s.id ? "bg-mustard text-ink" : "text-mut"}`}>
             {s.label}
@@ -1236,7 +1236,7 @@ function LanchesCadastro({ data, reload }) {
     <div className="space-y-4">
       <button onClick={novo}
         className="w-full py-4 rounded-2xl border-2 border-dashed border-graph text-mut hover:border-mustard hover:text-mustard font-bold flex items-center justify-center gap-2 transition">
-        <Plus size={20} /> Cadastrar novo lanche
+        <Plus size={20} /> Cadastrar novo produto
       </button>
       <div className="space-y-3">
         {burgers.map((b) => (
@@ -1326,7 +1326,7 @@ function LancheForm({ burger, ingredients, categorias = [], onSave, onCancel }) 
       {/* Foto do lanche */}
       <div>
         <label className="text-xs font-bold text-mut mb-2 block uppercase tracking-wide flex items-center gap-1.5">
-          <ImageIcon size={14} /> Foto do lanche
+          <ImageIcon size={14} /> Foto do produto
         </label>
         <div className="flex items-center gap-3">
           <div className="w-20 h-20 rounded-xl bg-ink border border-graph overflow-hidden grid place-items-center shrink-0">
@@ -1368,7 +1368,7 @@ function LancheForm({ burger, ingredients, categorias = [], onSave, onCancel }) 
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
-        <LabeledInput label="Nome do lanche" value={form.nome} onChange={(v) => set("nome", v)} placeholder="Ex: X-Tudo" />
+        <LabeledInput label="Nome do produto" value={form.nome} onChange={(v) => set("nome", v)} placeholder="Ex: X-Tudo" />
         <LabeledInput label="Preço de venda (R$)" value={form.preco} onChange={(v) => set("preco", v)} placeholder="0.00" type="number" />
       </div>
       <div>
@@ -2251,19 +2251,13 @@ function Aprovacao({ data, reload }) {
                 </div>
               ) : (
                 <>
-                  <div className="flex gap-2">
-                    <button onClick={() => setRecusandoId(o.id)} disabled={busy}
-                      className="flex-1 py-3 rounded-xl bg-graph text-mut hover:text-burnt font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition">
-                      <X size={18} /> Recusar
-                    </button>
-                    <button onClick={() => aceitar(o.id)} disabled={busy}
-                      className="flex-1 py-3 rounded-xl bg-[#7BC96F] text-[#11200d] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
-                      <Check size={18} /> {busy ? "..." : "Aceitar"}
-                    </button>
-                  </div>
                   <button onClick={() => aceitarEAvisar(o)} disabled={busy}
                     className="w-full py-3 rounded-xl bg-[#25D366] text-[#0a3d1c] font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
-                    <MessageCircle size={18} /> Aceitar e avisar cliente (WhatsApp + PIX)
+                    <MessageCircle size={18} /> {busy ? "..." : "Aceitar e avisar cliente (WhatsApp + PIX)"}
+                  </button>
+                  <button onClick={() => setRecusandoId(o.id)} disabled={busy}
+                    className="w-full py-3 rounded-xl bg-burnt text-white font-black flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition">
+                    <X size={18} /> Recusar e avisar cliente
                   </button>
                 </>
               )}
