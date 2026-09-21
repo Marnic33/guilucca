@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ShoppingBag, Plus, Minus, User, Phone, Check, Lock, Flame,
   Utensils, MessageSquarePlus, Sliders, Trash2, X, CreditCard,
-  Banknote, Smartphone, ShoppingCart, Copy, MapPin, Store, Home,
+  Banknote, Smartphone, ShoppingCart, Copy, MapPin, Store, Home, RefreshCw,
 } from "lucide-react";
 import {
   listBurgers, getBatchConfig, listOrders, createOrder,
@@ -29,6 +29,7 @@ export default function ClientePage() {
   const [loading, setLoading] = useState(true);
 
   const [cart, setCart] = useState([]); // itens individuais
+  const [avisoRefez, setAvisoRefez] = useState(false);
   const [configurando, setConfigurando] = useState(null);
   const [cliente, setCliente] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -78,6 +79,37 @@ export default function ClientePage() {
       }
       setUsados(totalLanchesPedidos(orders));
       setPedidasMap(quantidadePedidaPorLanche(orders));
+
+      // Refazer pedido: se veio de um pedido recusado, reconstrói o carrinho
+      try {
+        const raw = localStorage.getItem("refazer_pedido");
+        if (raw) {
+          localStorage.removeItem("refazer_pedido");
+          const dados = JSON.parse(raw);
+          if (dados.cliente) setCliente(dados.cliente);
+          if (dados.telefone) setTelefone(dados.telefone);
+          const itensCarrinho = [];
+          for (const it of dados.itens || []) {
+            const bg = b.find((x) => x.id === it.burgerId);
+            if (!bg) continue; // produto não existe mais, ignora
+            itensCarrinho.push({
+              burgerId: bg.id,
+              nome: bg.nome,
+              preco: Number(bg.preco),
+              emoji: bg.emoji,
+              foto_url: bg.foto_url || null,
+              removidos: it.removidos || [],
+              obs: it.obs || "",
+              qtd: it.qtd || 1,
+              uid: Math.random().toString(36).slice(2),
+            });
+          }
+          if (itensCarrinho.length > 0) {
+            setCart(itensCarrinho);
+            setAvisoRefez(true);
+          }
+        }
+      } catch (_) {}
     } catch (e) {
       setErro("Não foi possível carregar o cardápio. Tente recarregar a página.");
     } finally {
@@ -223,6 +255,18 @@ export default function ClientePage() {
           )}
           </div>
         </section>
+
+        {avisoRefez && (
+          <div className="bg-[#2a2418] border border-[#5c4f2f] rounded-2xl p-4 mb-4 flex items-start gap-3">
+            <RefreshCw size={18} className="text-mustard shrink-0 mt-0.5" />
+            <div>
+              <p className="font-black text-[#E8C977] text-sm">Itens do seu pedido anterior foram adicionados ao carrinho</p>
+              <p className="text-xs text-mut mt-0.5">
+                Ajuste o que precisar — remova o que faltou ou adicione outros sabores — e envie novamente.
+              </p>
+            </div>
+          </div>
+        )}
 
         <h2 className="font-black text-xl mb-4 flex items-center gap-2">
           <Utensils size={20} className="text-mustard" /> Cardápio
