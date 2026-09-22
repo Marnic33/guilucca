@@ -266,7 +266,35 @@ export async function createOrder({ cliente, telefone, itens, burgers, pagamento
   const { error: e2 } = await supabase.from("order_items").insert(rows);
   if (e2) throw e2;
 
+  // Notifica o dono no Telegram (não bloqueia o pedido se falhar)
+  const itensTexto = itens
+    .map((it) => {
+      const b = burgerMap[it.burgerId];
+      return `• ${it.qtd}x ${b?.nome || "Item"}`;
+    })
+    .join("\n");
+  notificarTelegram(
+    `🔔 <b>Novo pedido!</b>\n\n` +
+    `<b>Cliente:</b> ${cliente}\n` +
+    `<b>Contato:</b> ${telefone}\n\n` +
+    `${itensTexto}\n\n` +
+    `<b>Total:</b> ${brl(total)}\n` +
+    (entregaTexto ? `📍 ${entregaTexto}` : "")
+  );
+
   return order;
+}
+
+/* Envia uma notificação ao Telegram do dono via Edge Function.
+   Fire-and-forget: qualquer erro é ignorado para não travar o fluxo. */
+export function notificarTelegram(texto) {
+  try {
+    supabase.functions
+      .invoke("notificar-telegram", { body: { texto } })
+      .catch(() => {}); // silencioso: notificação é um extra, não pode quebrar o pedido
+  } catch (_) {
+    // se o cliente do supabase não tiver functions, ignora
+  }
 }
 
 /* ---------- PAGAMENTO ----------------------------------------------------- */
@@ -277,6 +305,24 @@ export async function informarPagamento(orderId) {
     .update({ pagamento_status: "informado" })
     .eq("id", orderId);
   if (error) throw error;
+
+  // Notifica o dono que o cliente avisou o pagamento
+  try {
+    const { data: o } = await supabase
+      .from("orders")
+      .select("cliente, telefone, total")
+      .eq("id", orderId)
+      .single();
+    if (o) {
+      notificarTelegram(
+        `💰 <b>Cliente avisou pagamento!</b>\n\n` +
+        `<b>Cliente:</b> ${o.cliente}\n` +
+        `<b>Contato:</b> ${o.telefone}\n` +
+        `<b>Total:</b> ${brl(o.total)}\n\n` +
+        `Confira o PIX e confirme no painel.`
+      );
+    }
+  } catch (_) {}
 }
 /* Admin define o status de pagamento (nao_pago | informado | pago) */
 export async function setPagamentoStatus(orderId, status) {
